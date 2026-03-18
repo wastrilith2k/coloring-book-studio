@@ -113,8 +113,8 @@ export const getBookWithPages = async (id, userId) => {
 export const insertBook = async (userId, { title, concept = '', tagLine = '' }) => {
   const db = getDb();
   const { lastInsertRowid } = await db.execute({
-    sql: 'INSERT INTO books (user_id, title, concept, tagLine, cover_url) VALUES (?, ?, ?, ?, "")',
-    args: [userId, title, concept, tagLine],
+    sql: 'INSERT INTO books (user_id, title, concept, tagLine, cover_url) VALUES (?, ?, ?, ?, ?)',
+    args: [userId, title, concept, tagLine, ''],
   });
   return getBookWithPages(lastInsertRowid, userId);
 };

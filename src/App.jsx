@@ -175,7 +175,7 @@ function WizardStep2({ concept, generating, error }) {
   );
 }
 
-function WizardStep3({ saving, saved }) {
+function WizardStep3({ saving, saved, error }) {
   if (saving) {
     return (
       <div className="wizard-content wizard-center">
@@ -192,6 +192,13 @@ function WizardStep3({ saving, saved }) {
         </div>
         <h3>Book saved!</h3>
         <p className="wizard-muted">You can now start generating coloring pages</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="wizard-content wizard-center">
+        <p className="wizard-error">{error}</p>
       </div>
     );
   }
@@ -309,7 +316,7 @@ function Wizard({ onBookCreated }) {
         {step === 2 && (
           <WizardStep2 concept={concept} generating={generating} error={error} />
         )}
-        {step === 3 && <WizardStep3 saving={saving} saved={saved} />}
+        {step === 3 && <WizardStep3 saving={saving} saved={saved} error={error} />}
 
         {step === 2 && !generating && concept && (
           <div className="wizard-footer">
