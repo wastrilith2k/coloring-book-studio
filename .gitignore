@@ -32,3 +32,11 @@ dist-ssr
 *.db
 *.db-shm
 *.db-wal
+
+# CDK
+infra/dist
+infra/cdk.out
+infra/node_modules
+
+# Lambda build
+lambda/node_modules

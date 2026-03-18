@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useChat } from 'ai/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Send,
   Sparkles,
@@ -8,8 +7,8 @@ import {
   BookOpenText,
   MessageSquare,
 } from 'lucide-react';
+import { apiFetch, chatWs } from '../lib/api.js';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8788';
 const STORAGE_KEY = 'chat:messages:v1';
 
 const loadInitialMessages = () => {
@@ -30,9 +29,6 @@ const loadInitialMessages = () => {
 };
 
 export default function ChatPanel({ onSaved, bookContext }) {
-  const chatApi = useMemo(() => `${API_BASE}/api/chat`, []);
-  const ideaApi = useMemo(() => `${API_BASE}/api/ideas`, []);
-  const saveApi = useMemo(() => `${API_BASE}/api/books`, []);
   const initialMessages = useMemo(() => loadInitialMessages(), []);
 
   const systemContext = useMemo(() => {
@@ -47,24 +43,80 @@ export default function ChatPanel({ onSaved, bookContext }) {
     }\nPages:\n${pageList}\n\nProvide helpful suggestions for scenes, prompts, or improvements.`;
   }, [bookContext]);
 
+  const [messages, setMessages] = useState(initialMessages);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [theme, setTheme] = useState('Bakery witches in autumn');
   const [length, setLength] = useState(8);
   const [audience, setAudience] = useState('kids');
   const [idea, setIdea] = useState(null);
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const assistantBufferRef = useRef('');
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
-    useChat({
-      api: chatApi,
-      initialMessages,
-      streamProtocol: 'text',
-      body: systemContext ? { systemContext } : undefined,
+  // Connect WebSocket on mount
+  useEffect(() => {
+    const connectWs = async () => {
+      try {
+        await chatWs.connect();
+        setWsConnected(true);
+      } catch {
+        setWsConnected(false);
+      }
+    };
+    connectWs();
+
+    return () => {
+      // Don't disconnect on unmount — keep connection alive across renders
+    };
+  }, []);
+
+  // Handle WebSocket messages
+  useEffect(() => {
+    const offDelta = chatWs.on('delta', (data) => {
+      assistantBufferRef.current += data.content;
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last._streaming) {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: assistantBufferRef.current },
+          ];
+        }
+        return prev;
+      });
     });
 
+    const offDone = chatWs.on('done', () => {
+      setIsLoading(false);
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last._streaming) {
+          const { _streaming, ...clean } = last;
+          return [...prev.slice(0, -1), clean];
+        }
+        return prev;
+      });
+    });
+
+    const offError = chatWs.on('error', (data) => {
+      setIsLoading(false);
+      setError({ message: data.content || 'Stream error' });
+    });
+
+    return () => {
+      offDelta();
+      offDone();
+      offError();
+    };
+  }, []);
+
+  // Persist messages to sessionStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!messages || messages.length === 0) {
+    if (!messages.length) {
       sessionStorage.removeItem(STORAGE_KEY);
       return;
     }
@@ -80,12 +132,73 @@ export default function ChatPanel({ onSaved, bookContext }) {
     }
   }, [messages]);
 
+  const handleSubmit = useCallback(async (e) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMsg = {
+      id: crypto.randomUUID?.() || String(Math.random()),
+      role: 'user',
+      content: input.trim(),
+    };
+    const assistantMsg = {
+      id: crypto.randomUUID?.() || String(Math.random()),
+      role: 'assistant',
+      content: '',
+      _streaming: true,
+    };
+
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setInput('');
+    setIsLoading(true);
+    setError(null);
+    assistantBufferRef.current = '';
+
+    try {
+      if (wsConnected) {
+        // Use WebSocket for streaming
+        const allMessages = [...messages, userMsg].map(m => ({
+          role: m.role,
+          content: m.content,
+        }));
+        chatWs.send('sendMessage', {
+          messages: allMessages,
+          systemContext,
+        });
+      } else {
+        // Fallback to HTTP API (non-streaming)
+        const allMessages = [...messages, userMsg].map(m => ({
+          role: m.role,
+          content: m.content,
+        }));
+        const res = await apiFetch('/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            messages: allMessages,
+            systemContext,
+          }),
+        });
+        const text = await res.text();
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant' && last._streaming) {
+            return [...prev.slice(0, -1), { ...last, content: text, _streaming: undefined }];
+          }
+          return prev;
+        });
+        setIsLoading(false);
+      }
+    } catch (err) {
+      setError({ message: err.message });
+      setIsLoading(false);
+    }
+  }, [input, isLoading, messages, systemContext, wsConnected]);
+
   const runIdea = async () => {
     setStatus('');
     try {
-      const res = await fetch(ideaApi, {
+      const res = await apiFetch('/api/ideas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           theme,
           audience,
@@ -109,9 +222,8 @@ export default function ChatPanel({ onSaved, bookContext }) {
     setSaving(true);
     setStatus('');
     try {
-      const res = await fetch(saveApi, {
+      const res = await apiFetch('/api/books', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: idea.title,
           tagLine: idea.tagLine || idea.tagline || '',
@@ -134,13 +246,14 @@ export default function ChatPanel({ onSaved, bookContext }) {
       <div className="chat-panel__header">
         <div>
           <p className="eyebrow">AI planner</p>
-          <h3>Brainstorm with Gemini</h3>
+          <h3>Brainstorm</h3>
           <p className="helper">
-            Streamed replies via free-tier Gemini; craft a concept, then save
-            it.
+            Streamed replies via OpenRouter; craft a concept, then save it.
           </p>
         </div>
-        <span className="pill subtle">Streaming on</span>
+        <span className="pill subtle">
+          {wsConnected ? 'WS connected' : 'HTTP fallback'}
+        </span>
       </div>
 
       <div className="chat-panel__body">
@@ -161,7 +274,7 @@ export default function ChatPanel({ onSaved, bookContext }) {
               <span className="chat-role">{msg.role}</span>
               <p>
                 {msg.content ||
-                  (isLoading && msg.role === 'assistant' ? 'Thinking…' : '')}
+                  (isLoading && msg.role === 'assistant' ? 'Thinking...' : '')}
               </p>
             </div>
           ))}
@@ -169,7 +282,7 @@ export default function ChatPanel({ onSaved, bookContext }) {
             !messages.find(m => m.role === 'assistant' && !m.content) && (
               <div className="chat-bubble is-assistant">
                 <span className="chat-role">assistant</span>
-                <p>Thinking…</p>
+                <p>Thinking...</p>
               </div>
             )}
         </div>
@@ -177,8 +290,8 @@ export default function ChatPanel({ onSaved, bookContext }) {
         <form className="chat-form" onSubmit={handleSubmit}>
           <textarea
             value={input}
-            onChange={handleInputChange}
-            placeholder="Ask for a coloring book idea or page prompt…"
+            onChange={e => setInput(e.target.value)}
+            placeholder="Ask for a coloring book idea or page prompt..."
             rows={3}
           />
           <button

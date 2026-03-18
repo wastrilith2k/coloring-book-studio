@@ -7,13 +7,9 @@ import {
   Loader2,
   BookOpen,
 } from 'lucide-react';
-
-export const MODEL_ID = 'gemini-2.5-flash-image-preview';
-const ENDPOINT = 'generateContent';
+import { apiFetch } from '../lib/api.js';
 
 export default function ImageGenerator({
-  apiKey,
-  modelId = MODEL_ID,
   prompt = '',
   hasSelection,
   image,
@@ -31,25 +27,17 @@ export default function ImageGenerator({
 
     const attempt = async (retry = 0) => {
       try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:${ENDPOINT}?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-            }),
-          }
-        );
-        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const res = await apiFetch('/api/generate-image', {
+          method: 'POST',
+          body: JSON.stringify({ prompt }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Status ${res.status}`);
+        }
         const data = await res.json();
-        const base64 = data.candidates?.[0]?.content?.parts?.find(
-          p => p.inlineData
-        )?.inlineData?.data;
-        if (!base64) throw new Error('No image returned');
-        const url = `data:image/png;base64,${base64}`;
-        onImage?.(url);
+        if (!data.dataUrl) throw new Error('No image returned');
+        onImage?.(data.dataUrl);
       } catch (e) {
         if (retry < 3) return attempt(retry + 1);
         setError(`The magic failed. Please try again in a moment. ${e}`);
@@ -82,7 +70,7 @@ export default function ImageGenerator({
           ) : (
             <Wand2 size={18} />
           )}
-          {loading ? 'Brewing…' : 'Generate page'}
+          {loading ? 'Brewing...' : 'Generate page'}
         </button>
       </div>
 
@@ -97,7 +85,7 @@ export default function ImageGenerator({
         {loading ? (
           <div className="book-viewer__loading">
             <Sparkles size={48} />
-            <p>Mixing the ink…</p>
+            <p>Mixing the ink...</p>
           </div>
         ) : image ? (
           <div className="book-viewer__preview">

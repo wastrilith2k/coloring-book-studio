@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
-import ImageGenerator, { MODEL_ID } from './ImageGenerator.jsx';
+import ImageGenerator from './ImageGenerator.jsx';
+import { apiFetch } from '../lib/api.js';
 
 const STYLE_HINT = 'White background, thick clean lines, coloring book.';
 
@@ -9,7 +10,6 @@ const parseJsonSafe = async res => {
   try {
     return JSON.parse(text);
   } catch {
-    // Detect HTML error pages and return a clean message
     if (text.includes('<!DOCTYPE') || text.includes('<html')) {
       const match = text.match(/<pre>([^<]+)<\/pre>/i);
       return { error: match ? match[1] : `Server error (${res.status})` };
@@ -19,8 +19,6 @@ const parseJsonSafe = async res => {
 };
 
 export default function BookViewer({
-  apiKey,
-  apiBase,
   bookId = null,
   coverUrl = '',
   characterGuide = '',
@@ -164,17 +162,17 @@ export default function BookViewer({
     };
   }, [approvalItems, pageState, hasStoryPages]);
 
-  const canDownloadBundle = Boolean(apiBase && bookId && allApproved);
+  const canDownloadBundle = Boolean(bookId && allApproved);
 
   const loadImages = async page => {
-    if (!page || !apiBase) return;
+    if (!page) return;
     if (page.isCover && !bookId) return;
     updatePageState(page.id, () => ({ loading: true }));
     setImageError('');
     try {
       const res = page.isCover
-        ? await fetch(`${apiBase}/api/books/${bookId}/cover/images`)
-        : await fetch(`${apiBase}/api/pages/${page.id}/images`);
+        ? await apiFetch(`/api/books/${bookId}/cover/images`)
+        : await apiFetch(`/api/pages/${page.id}/images`);
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data?.error || 'Failed to load images');
       const attempts = (data.images || []).map(a => ({
@@ -196,16 +194,15 @@ export default function BookViewer({
 
   useEffect(() => {
     if (activePage) loadImages(activePage);
-  }, [activePage, apiBase]);
+  }, [activePage]);
 
   const saveCharacterStyle = async value => {
-    if (!activePage || !apiBase || activePage.isCover) return;
+    if (!activePage || activePage.isCover) return;
     setStyleError('');
     updatePageState(activePage.id, () => ({ styleSaving: true }));
     try {
-      const res = await fetch(`${apiBase}/api/pages/${activePage.id}`, {
+      const res = await apiFetch(`/api/pages/${activePage.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ characterStyle: value }),
       });
       const data = await res.json();
@@ -225,19 +222,18 @@ export default function BookViewer({
   };
 
   const handleStyleBlur = () => {
-    if (!activePage || !apiBase || activePage.isCover) return;
+    if (!activePage || activePage.isCover) return;
     const value = pageStyles[activePage.id] ?? '';
     saveCharacterStyle(value);
   };
 
   const savePrompt = async value => {
-    if (!activePage || !apiBase || activePage.isCover) return;
+    if (!activePage || activePage.isCover) return;
     setPromptError('');
     updatePageState(activePage.id, () => ({ promptSaving: true }));
     try {
-      const res = await fetch(`${apiBase}/api/pages/${activePage.id}`, {
+      const res = await apiFetch(`/api/pages/${activePage.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: value, scene: value }),
       });
       const data = await res.json();
@@ -257,7 +253,7 @@ export default function BookViewer({
   };
 
   const handlePromptBlur = () => {
-    if (!activePage || !apiBase || activePage.isCover) return;
+    if (!activePage || activePage.isCover) return;
     const value = pagePrompts[activePage.id] ?? '';
     savePrompt(value);
   };
@@ -272,20 +268,18 @@ export default function BookViewer({
   };
 
   const saveGeneratedImage = async dataUrl => {
-    if (!activePage || !apiBase) return;
+    if (!activePage) return;
     if (activePage.isCover && !bookId) return;
     setImageError('');
     updatePageState(activePage.id, () => ({ preview: dataUrl, saving: true }));
     try {
       const res = activePage.isCover
-        ? await fetch(`${apiBase}/api/books/${bookId}/cover/images`, {
+        ? await apiFetch(`/api/books/${bookId}/cover/images`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ dataUrl }),
           })
-        : await fetch(`${apiBase}/api/pages/${activePage.id}/images`, {
+        : await apiFetch(`/api/pages/${activePage.id}/images`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ dataUrl }),
           });
       const data = await parseJsonSafe(res);
@@ -304,24 +298,22 @@ export default function BookViewer({
   };
 
   const toggleApprove = async (attemptId, approved) => {
-    if (!activePage || !apiBase) return;
+    if (!activePage) return;
     if (activePage.isCover && !bookId) return;
     setImageError('');
     try {
       const res = activePage.isCover
-        ? await fetch(
-            `${apiBase}/api/books/${bookId}/cover/images/${attemptId}/approve`,
+        ? await apiFetch(
+            `/api/books/${bookId}/cover/images/${attemptId}/approve`,
             {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ approved }),
             }
           )
-        : await fetch(
-            `${apiBase}/api/pages/${activePage.id}/images/${attemptId}/approve`,
+        : await apiFetch(
+            `/api/pages/${activePage.id}/images/${attemptId}/approve`,
             {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ approved }),
             }
           );
@@ -340,7 +332,7 @@ export default function BookViewer({
   };
 
   const deleteAttempt = async attemptId => {
-    if (!activePage || !apiBase) return;
+    if (!activePage) return;
     if (activePage.isCover && !bookId) return;
     const attempt = (pageState[activePage.id]?.attempts || []).find(
       a => a.id === attemptId
@@ -349,12 +341,12 @@ export default function BookViewer({
     setImageError('');
     try {
       const res = activePage.isCover
-        ? await fetch(
-            `${apiBase}/api/books/${bookId}/cover/images/${attemptId}`,
+        ? await apiFetch(
+            `/api/books/${bookId}/cover/images/${attemptId}`,
             { method: 'DELETE' }
           )
-        : await fetch(
-            `${apiBase}/api/pages/${activePage.id}/images/${attemptId}`,
+        : await apiFetch(
+            `/api/pages/${activePage.id}/images/${attemptId}`,
             { method: 'DELETE' }
           );
       if (!res.ok && res.status !== 204) {
@@ -379,7 +371,7 @@ export default function BookViewer({
     setBundleError('');
     setBundleLoading(true);
     try {
-      const res = await fetch(`${apiBase}/api/books/${bookId}/download`);
+      const res = await apiFetch(`/api/books/${bookId}/download`);
       if (!res.ok) {
         let message = 'Download failed';
         try {
@@ -392,10 +384,23 @@ export default function BookViewer({
         throw new Error(message);
       }
 
-      const blob = await res.blob();
-      const disposition = res.headers.get('content-disposition') || '';
-      const match = disposition.match(/filename="?([^";]+)"?/i);
-      const filename = match?.[1] || `book-${bookId}-approved-images.zip`;
+      // Lambda returns JSON with presigned URLs instead of a ZIP stream
+      const data = await res.json();
+      const files = data.files || [];
+
+      // Download all files and create ZIP client-side
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+
+      await Promise.all(files.map(async (file) => {
+        const response = await fetch(file.url);
+        const blob = await response.blob();
+        zip.file(file.name, blob);
+      }));
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const slug = (data.title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+      const filename = `${slug}-approved-images.zip`;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -431,7 +436,7 @@ export default function BookViewer({
             </div>
           </div>
 
-          {apiBase && bookId && hasStoryPages && (
+          {bookId && hasStoryPages && (
             <div className="book-viewer__bundle">
               <div>
                 <p className="book-viewer__crumb">Approved pages</p>
@@ -453,7 +458,7 @@ export default function BookViewer({
                   onClick={downloadApprovedBundle}
                   disabled={!canDownloadBundle || bundleLoading}
                 >
-                  {bundleLoading ? 'Preparing bundle…' : 'Download bundle'}
+                  {bundleLoading ? 'Preparing bundle...' : 'Download bundle'}
                 </button>
               </div>
             </div>
@@ -495,7 +500,7 @@ export default function BookViewer({
         <section className="book-viewer__main">
           <div className="book-viewer__header">
             <div>
-              <p className="book-viewer__crumb">Workspace ▸ {bookTitle}</p>
+              <p className="book-viewer__crumb">Workspace > {bookTitle}</p>
               <h2>{activePage?.title ?? 'Select a page'}</h2>
               <p className="book-viewer__scene">
                 {activePage?.scene ??
@@ -533,7 +538,7 @@ export default function BookViewer({
                   rows={3}
                 />
                 {currentState.styleSaving && (
-                  <span className="pill subtle">Saving…</span>
+                  <span className="pill subtle">Saving...</span>
                 )}
                 {styleError && (
                   <div className="book-viewer__alert">{styleError}</div>
@@ -550,7 +555,7 @@ export default function BookViewer({
                   rows={3}
                 />
                 {currentState.promptSaving && (
-                  <span className="pill subtle">Saving…</span>
+                  <span className="pill subtle">Saving...</span>
                 )}
                 {promptError && (
                   <div className="book-viewer__alert">{promptError}</div>
@@ -563,8 +568,6 @@ export default function BookViewer({
           )}
 
           <ImageGenerator
-            apiKey={apiKey}
-            modelId={MODEL_ID}
             prompt={prompt}
             hasSelection={Boolean(prompt)}
             image={currentImage}
@@ -611,7 +614,7 @@ export default function BookViewer({
                   </h3>
                 </div>
                 {currentState.saving && (
-                  <span className="pill subtle">Uploading…</span>
+                  <span className="pill subtle">Uploading...</span>
                 )}
               </div>
 
@@ -681,7 +684,7 @@ export default function BookViewer({
           <footer className="book-viewer__footer">
             <span>Ready for KDP 8.5x11</span>
             {currentImage && (
-              <span className="good">Illustration finished ✓</span>
+              <span className="good">Illustration finished</span>
             )}
           </footer>
         </section>
