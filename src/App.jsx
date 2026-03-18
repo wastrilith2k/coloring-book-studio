@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Layers,
   LogOut,
+  MessageSquare,
   Moon,
   Palette,
   Sparkles,
@@ -14,6 +15,7 @@ import {
   Library,
   Plus,
   ArrowLeft,
+  X,
 } from 'lucide-react';
 import BookViewer from './components/BookViewer.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
@@ -347,7 +349,7 @@ function Wizard({ onBookCreated }) {
 
 /* ---------- Top Bar ---------- */
 
-function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme, toggleTheme }) {
+function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme, toggleTheme, chatOpen, toggleChat }) {
   const [showLibrary, setShowLibrary] = useState(false);
   const activeBook = books.find(b => `${b.id}` === `${activeId}`) ?? null;
 
@@ -376,35 +378,45 @@ function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme,
           <span className="topbar-btn__label">New Book</span>
         </button>
 
-        {books.length > 1 && (
-          <div className="topbar__library-wrap">
-            <button
-              className="btn topbar-btn"
-              onClick={() => setShowLibrary(!showLibrary)}
-            >
-              <Library size={16} />
-              <span className="topbar-btn__label">Library ({books.length})</span>
-            </button>
-            {showLibrary && (
-              <>
-                <div className="library-backdrop" onClick={() => setShowLibrary(false)} />
-                <div className="library-dropdown">
-                  <div className="library-dropdown__title">Your Books</div>
-                  {books.map(book => (
-                    <button
-                      key={book.id}
-                      className={`library-item ${`${activeId}` === `${book.id}` ? 'is-active' : ''}`}
-                      onClick={() => { setActiveId(book.id); setShowLibrary(false); }}
-                    >
-                      <BookOpen size={14} />
-                      <span>{book.title}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <div className="topbar__library-wrap">
+          <button
+            className="btn topbar-btn"
+            onClick={() => setShowLibrary(!showLibrary)}
+          >
+            <Library size={16} />
+            <span className="topbar-btn__label">Library ({books.length})</span>
+          </button>
+          {showLibrary && (
+            <>
+              <div className="library-backdrop" onClick={() => setShowLibrary(false)} />
+              <div className="library-dropdown">
+                <div className="library-dropdown__title">Your Books</div>
+                {books.length === 0 && (
+                  <div className="library-dropdown__empty">No books yet</div>
+                )}
+                {books.map(book => (
+                  <button
+                    key={book.id}
+                    className={`library-item ${`${activeId}` === `${book.id}` ? 'is-active' : ''}`}
+                    onClick={() => { setActiveId(book.id); setShowLibrary(false); }}
+                  >
+                    <BookOpen size={14} />
+                    <span>{book.title}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <button
+          className={`btn topbar-btn ${chatOpen ? 'is-active' : ''}`}
+          onClick={toggleChat}
+          title={chatOpen ? 'Close chat' : 'Open chat'}
+        >
+          <MessageSquare size={16} />
+          <span className="topbar-btn__label">Chat</span>
+        </button>
 
         <button
           className="theme-toggle"
@@ -435,6 +447,7 @@ export default function App({ signOut, user }) {
   const [, setLoadingBook] = useState(false);
   const [error, setError] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Theme: light as default (kids' coloring book tool)
   const [theme, setTheme] = useState(() => {
@@ -456,6 +469,7 @@ export default function App({ signOut, user }) {
         title: p.title || `Page ${p.id ?? idx + 1}`,
         scene: p.scene || p.prompt || '',
         prompt: p.prompt || p.scene || '',
+        caption: p.caption || '',
         characterStyle:
           p.character_style || p.characterStyle || bookData?.concept || '',
         includeCharacterGuide: true,
@@ -539,6 +553,8 @@ export default function App({ signOut, user }) {
         onNewBook={() => setShowWizard(true)}
         theme={theme}
         toggleTheme={toggleTheme}
+        chatOpen={chatOpen}
+        toggleChat={() => setChatOpen(o => !o)}
       />
 
       {shouldShowWizard && (
@@ -568,8 +584,29 @@ export default function App({ signOut, user }) {
         )}
 
         {activeBook && !error && (
-          <div className="workspace">
-            <div className="workspace__chat">
+          <>
+            <div className="workspace">
+              <div className="workspace__viewer">
+                <BookViewer
+                  bookId={bookData?.id || activeBook.id}
+                  characterGuide={bookData?.concept || ''}
+                  storyPages={preparedPages}
+                  bookTitle={bookData?.title || activeBook.title}
+                  tagLine={bookData?.tagLine || ''}
+                />
+              </div>
+            </div>
+
+            {chatOpen && (
+              <div className="flyout-backdrop" onClick={() => setChatOpen(false)} />
+            )}
+            <div className={`chat-flyout ${chatOpen ? 'is-open' : ''}`}>
+              <div className="chat-flyout__header">
+                <span className="chat-flyout__title">Chat</span>
+                <button className="btn topbar-btn icon-only" onClick={() => setChatOpen(false)}>
+                  <X size={16} />
+                </button>
+              </div>
               <ChatPanel
                 bookContext={
                   bookData
@@ -585,16 +622,7 @@ export default function App({ signOut, user }) {
                 }
               />
             </div>
-            <div className="workspace__viewer">
-              <BookViewer
-                bookId={bookData?.id || activeBook.id}
-                characterGuide={bookData?.concept || ''}
-                storyPages={preparedPages}
-                bookTitle={bookData?.title || activeBook.title}
-                tagLine={bookData?.tagLine || ''}
-              />
-            </div>
-          </div>
+          </>
         )}
       </div>
     </div>

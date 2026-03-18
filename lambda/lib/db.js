@@ -21,6 +21,12 @@ export const ensureSchema = async () => {
   for (const sql of statements) {
     await db.execute(sql);
   }
+  // Migrations
+  try {
+    await db.execute("ALTER TABLE pages ADD COLUMN caption TEXT DEFAULT ''");
+  } catch {
+    // Column already exists — ignore
+  }
   initialized = true;
 };
 
@@ -280,7 +286,7 @@ export const getPage = async (id) => {
   return rows[0] || null;
 };
 
-export const updatePage = async (id, { title, scene, prompt, characterStyle, imageUrl, sortOrder }) => {
+export const updatePage = async (id, { title, scene, prompt, characterStyle, imageUrl, sortOrder, caption }) => {
   const db = getDb();
   await db.execute({
     sql: `UPDATE pages SET
@@ -289,9 +295,10 @@ export const updatePage = async (id, { title, scene, prompt, characterStyle, ima
       prompt = COALESCE(?, prompt),
       character_style = COALESCE(?, character_style),
       image_url = COALESCE(?, image_url),
-      sort_order = COALESCE(?, sort_order)
+      sort_order = COALESCE(?, sort_order),
+      caption = COALESCE(?, caption)
     WHERE id = ?`,
-    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, imageUrl ?? null, sortOrder ?? null, id],
+    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, id],
   });
   const { rows } = await db.execute({
     sql: 'SELECT * FROM pages WHERE id = ?',

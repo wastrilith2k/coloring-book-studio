@@ -3,7 +3,7 @@ import { CheckCircle2 } from 'lucide-react';
 import ImageGenerator from './ImageGenerator.jsx';
 import { apiFetch } from '../lib/api.js';
 
-const STYLE_HINT = 'White background, thick clean lines, coloring book.';
+const STYLE_HINT = 'Black and white UNCOLORED coloring book page. Thick clean outlines only, no shading, no filled colors, no gradients. Pure white background. Leave all areas blank for a child to color in.';
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -64,6 +64,7 @@ export default function BookViewer({
   const [promptError, setPromptError] = useState('');
   const [pageStyles, setPageStyles] = useState({});
   const [pagePrompts, setPagePrompts] = useState({});
+  const [pageCaptions, setPageCaptions] = useState({});
   const [bundleError, setBundleError] = useState('');
   const [bundleLoading, setBundleLoading] = useState(false);
   const [coverPromptVisible, setCoverPromptVisible] = useState(false);
@@ -72,12 +73,15 @@ export default function BookViewer({
   useEffect(() => {
     const initialStyles = {};
     const initialPrompts = {};
+    const initialCaptions = {};
     pages.forEach(p => {
       initialStyles[p.id] = p.characterStyle ?? characterGuide ?? '';
       initialPrompts[p.id] = p.prompt || p.scene || '';
+      initialCaptions[p.id] = p.caption || '';
     });
     setPageStyles(initialStyles);
     setPagePrompts(initialPrompts);
+    setPageCaptions(initialCaptions);
     setActivePage(navPages[0] ?? null);
     setPageState({});
     setStyleError('');
@@ -256,6 +260,35 @@ export default function BookViewer({
     if (!activePage || activePage.isCover) return;
     const value = pagePrompts[activePage.id] ?? '';
     savePrompt(value);
+  };
+
+  const currentCaption =
+    activePage && !isCover ? pageCaptions[activePage.id] ?? '' : '';
+
+  const saveCaption = async value => {
+    if (!activePage || activePage.isCover) return;
+    updatePageState(activePage.id, () => ({ captionSaving: true }));
+    try {
+      const res = await apiFetch(`/api/pages/${activePage.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ caption: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Save failed');
+      updatePageState(activePage.id, () => ({ captionSaving: false }));
+    } catch {
+      updatePageState(activePage.id, () => ({ captionSaving: false }));
+    }
+  };
+
+  const handleCaptionChange = e => {
+    if (!activePage || activePage.isCover) return;
+    setPageCaptions(prev => ({ ...prev, [activePage.id]: e.target.value }));
+  };
+
+  const handleCaptionBlur = () => {
+    if (!activePage || activePage.isCover) return;
+    saveCaption(pageCaptions[activePage.id] ?? '');
   };
 
   const handleCoverPromptChange = e => {
@@ -473,26 +506,39 @@ export default function BookViewer({
                 Add storyPages to start generating.
               </div>
             )}
-            {navPages.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setActivePage(p)}
-                className={`book-viewer__item ${
-                  activePage?.id === p.id ? 'is-active' : ''
-                }`}
-              >
-                <div>
-                  <p className="item__title">{p.title}</p>
-                  <p className="item__meta">
-                    {p.isCover ? 'Cover' : `Scene #${p.id}`}
-                  </p>
-                </div>
-                {pageState[p.id]?.attempts?.some(a => a.approved) ||
-                p.image_url ? (
-                  <CheckCircle2 size={18} />
-                ) : null}
-              </button>
-            ))}
+            {navPages.map(p => {
+              const thumbUrl = approvedUrlForPage(p);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setActivePage(p)}
+                  className={`book-viewer__item ${
+                    activePage?.id === p.id ? 'is-active' : ''
+                  } ${thumbUrl ? 'has-thumb' : ''}`}
+                >
+                  {thumbUrl ? (
+                    <img
+                      className="item__thumb"
+                      src={thumbUrl}
+                      alt={p.title}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="item__thumb-blank" />
+                  )}
+                  <div className="item__info">
+                    <p className="item__title">{p.title}</p>
+                    <p className="item__meta">
+                      {p.isCover ? 'Cover' : `Scene #${p.id}`}
+                    </p>
+                  </div>
+                  {pageState[p.id]?.attempts?.some(a => a.approved) ||
+                  p.image_url ? (
+                    <CheckCircle2 size={16} />
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
       </aside>
 
@@ -561,6 +607,23 @@ export default function BookViewer({
                 )}
                 <div className="prompt-hint">
                   A style hint is auto-added: "{STYLE_HINT}"
+                </div>
+              </div>
+              <div className="prompt-field prompt-field--caption">
+                <label htmlFor="caption-text">Print caption</label>
+                <textarea
+                  id="caption-text"
+                  value={currentCaption}
+                  onChange={handleCaptionChange}
+                  onBlur={handleCaptionBlur}
+                  placeholder="Caption text printed below the image (not used for generation)."
+                  rows={2}
+                />
+                {currentState.captionSaving && (
+                  <span className="pill subtle">Saving...</span>
+                )}
+                <div className="prompt-hint">
+                  Appears in print only — not included in the image generation prompt.
                 </div>
               </div>
             </div>
