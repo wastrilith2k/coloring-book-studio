@@ -42,24 +42,47 @@ export const handleGenerateImage = async (ctx) => {
     });
 
     if (!res.ok) {
-      // Log the actual error server-side, return generic message to client
       const errText = await res.text();
       console.error(`Gemini API error ${res.status}:`, errText);
-      return json(502, { error: 'Image generation failed. Please try again.' }, origin);
+
+      // Surface quota/rate-limit errors to the user
+      if (res.status === 429) {
+        return json(429, { error: 'Rate limit exceeded. Please wait a moment and try again.' }, origin);
+      }
+      if (res.status === 403) {
+        return json(403, { error: 'API quota exceeded or access denied. Check your Gemini API key and billing.' }, origin);
+      }
+
+      // Try to parse a useful message from the Gemini error
+      let detail = 'Image generation failed. Please try again.';
+      try {
+        const errJson = JSON.parse(errText);
+        const msg = errJson.error?.message;
+        if (msg) detail = msg;
+      } catch { /* use default */ }
+
+      return json(502, { error: detail }, origin);
     }
 
     const data = await res.json();
 
-    // Gemini API returns snake_case (inline_data), but some SDK versions
-    // use camelCase (inlineData). Check both to be safe.
-    const imagePart = data.candidates?.[0]?.content?.parts?.find(
+    // Check for blocked content (safety filters)
+    const candidate = data.candidates?.[0];
+    if (candidate?.finishReason === 'SAFETY' || candidate?.finishReason === 'BLOCKED') {
+      return json(400, { error: 'Image blocked by safety filters. Try a different prompt.' }, origin);
+    }
+
+    // Gemini REST API uses snake_case (inline_data), but some SDK wrappers
+    // return camelCase (inlineData). Check both to be safe.
+    const imagePart = candidate?.content?.parts?.find(
       p => p.inline_data || p.inlineData
     );
     const inlineData = imagePart?.inline_data || imagePart?.inlineData;
 
     if (!inlineData?.data) {
-      console.error('Gemini response had no image data. Parts:', JSON.stringify(data.candidates?.[0]?.content?.parts?.map(p => Object.keys(p))));
-      return json(502, { error: 'No image returned from generation service' }, origin);
+      const debugInfo = JSON.stringify(data).slice(0, 1500);
+      console.error('Gemini response had no image data. Full response:', debugInfo);
+      return json(502, { error: `No image in response. Debug: ${debugInfo}` }, origin);
     }
 
     const mimeType = inlineData.mime_type || inlineData.mimeType || 'image/png';
