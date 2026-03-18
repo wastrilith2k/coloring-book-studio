@@ -4,8 +4,10 @@ import {
   ChevronRight,
   Layers,
   LogOut,
+  Moon,
   Palette,
   Sparkles,
+  Sun,
   Users,
   Wand2,
   Check,
@@ -345,7 +347,7 @@ function Wizard({ onBookCreated }) {
 
 /* ---------- Top Bar ---------- */
 
-function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook }) {
+function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme, toggleTheme }) {
   const [showLibrary, setShowLibrary] = useState(false);
   const activeBook = books.find(b => `${b.id}` === `${activeId}`) ?? null;
 
@@ -404,6 +406,14 @@ function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook }) {
           </div>
         )}
 
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        >
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
+
         <div className="topbar__user">
           <span className="topbar__email">{user?.signInDetails?.loginId || 'user'}</span>
           <button className="btn topbar-btn icon-only" onClick={signOut} title="Sign out">
@@ -425,6 +435,19 @@ export default function App({ signOut, user }) {
   const [, setLoadingBook] = useState(false);
   const [error, setError] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
+
+  // Theme: light as default (kids' coloring book tool)
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('cbs-theme');
+    return saved === 'dark' ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cbs-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
 
   const preparedPages = useMemo(
     () =>
@@ -514,6 +537,8 @@ export default function App({ signOut, user }) {
         user={user}
         signOut={signOut}
         onNewBook={() => setShowWizard(true)}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       {shouldShowWizard && (

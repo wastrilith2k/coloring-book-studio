@@ -1,10 +1,11 @@
 import { json } from '../../lib/cors.js';
 
 const ALLOWED_MODELS = [
-  'gemini-2.5-flash-image-preview',
-  'gemini-2.0-flash-image-generation',
+  'gemini-2.5-flash-image',
+  'gemini-3.1-flash-image-preview',
+  'gemini-3-pro-image-preview',
 ];
-const DEFAULT_MODEL = 'gemini-2.5-flash-image-preview';
+const DEFAULT_MODEL = 'gemini-2.5-flash-image';
 
 /**
  * Server-side proxy for Gemini image generation.

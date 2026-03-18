@@ -418,9 +418,8 @@ export default function BookViewer({
   };
 
   return (
-    <div className="book-viewer">
-      <div className="book-viewer__shell">
-        <aside className="book-viewer__sidebar">
+    <>
+      <aside className="book-viewer__sidebar">
           <div className="book-viewer__badge">Studio</div>
           <div className="book-viewer__title-row">
             <div>
@@ -495,9 +494,9 @@ export default function BookViewer({
               </button>
             ))}
           </div>
-        </aside>
+      </aside>
 
-        <section className="book-viewer__main">
+      <section className="book-viewer__main">
           <div className="book-viewer__header">
             <div>
               <p className="book-viewer__crumb">Workspace > {bookTitle}</p>
@@ -687,8 +686,7 @@ export default function BookViewer({
               <span className="good">Illustration finished</span>
             )}
           </footer>
-        </section>
-      </div>
-    </div>
+      </section>
+    </>
   );
 }
