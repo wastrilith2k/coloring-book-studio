@@ -49,15 +49,21 @@ export const handleGenerateImage = async (ctx) => {
     }
 
     const data = await res.json();
-    const base64 = data.candidates?.[0]?.content?.parts?.find(
-      p => p.inlineData
-    )?.inlineData?.data;
 
-    if (!base64) {
+    // Gemini API returns snake_case (inline_data), but some SDK versions
+    // use camelCase (inlineData). Check both to be safe.
+    const imagePart = data.candidates?.[0]?.content?.parts?.find(
+      p => p.inline_data || p.inlineData
+    );
+    const inlineData = imagePart?.inline_data || imagePart?.inlineData;
+
+    if (!inlineData?.data) {
+      console.error('Gemini response had no image data. Parts:', JSON.stringify(data.candidates?.[0]?.content?.parts?.map(p => Object.keys(p))));
       return json(502, { error: 'No image returned from generation service' }, origin);
     }
 
-    return json(200, { dataUrl: `data:image/png;base64,${base64}` }, origin);
+    const mimeType = inlineData.mime_type || inlineData.mimeType || 'image/png';
+    return json(200, { dataUrl: `data:${mimeType};base64,${inlineData.data}` }, origin);
   } catch (err) {
     console.error('Image generation error:', err);
     return json(500, { error: 'Image generation failed unexpectedly' }, origin);
