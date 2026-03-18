@@ -30,6 +30,7 @@ export const handleGenerateImage = async (ctx) => {
   if (!apiKey) return json(500, { error: 'Image generation not configured' }, origin);
 
   try {
+    console.log(`[generate-image] model=${model}, prompt length=${prompt.length}, prompt preview="${prompt.slice(0, 120)}..."`);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const res = await fetch(url, {
@@ -40,6 +41,8 @@ export const handleGenerateImage = async (ctx) => {
         generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
       }),
     });
+
+    console.log(`[generate-image] Gemini responded with status ${res.status}`);
 
     if (!res.ok) {
       const errText = await res.text();
