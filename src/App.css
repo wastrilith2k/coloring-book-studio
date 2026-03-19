@@ -1459,10 +1459,10 @@
   background:
     radial-gradient(circle at 60% 20%, var(--gradient-tint-canvas), transparent 50%),
     var(--bg-deep);
-  padding: 22px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
   overflow-y: auto;
 }
@@ -1470,7 +1470,7 @@
 /* --- Split layout: prompts left, gallery right --- */
 .main-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
   flex: 1;
   min-height: 0;
@@ -1487,8 +1487,9 @@
 .main-layout__gallery {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
+  max-width: 600px;
 }
 
 .prompt-stack {
@@ -1515,15 +1516,16 @@
   display: flex;
   align-items: stretch;
   gap: 0;
+  min-height: 280px;
+  max-height: 520px;
   flex: 1;
-  min-height: 300px;
 }
 
 .carousel__arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  width: 36px;
   flex-shrink: 0;
   border: none;
   background: var(--btn-surface);
@@ -1569,7 +1571,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 8px;
 }
 
 .carousel__image {
@@ -1605,17 +1607,17 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   height: 100%;
   border: 2px dashed var(--border-default);
   border-radius: 0;
-  padding: 24px;
+  padding: 16px;
 }
 
 .carousel__gen-btn {
-  font-size: 16px;
-  padding: 14px 28px;
+  font-size: 14px;
+  padding: 12px 22px;
 }
 
 .carousel__gen-hint {
@@ -1662,8 +1664,8 @@
 }
 
 .carousel__thumb-btn {
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
   border: 2px solid var(--border-default);
   background: var(--bg-elevated);
@@ -1809,7 +1811,7 @@
 }
 
 .prompt-stack .prompt-field textarea {
-  min-height: 72px;
+  min-height: 56px;
 }
 
 .prompt-field {
@@ -1831,9 +1833,9 @@
   border: 1px solid var(--border-default);
   background: var(--bg-deep);
   color: var(--text-primary);
-  padding: 10px 12px;
+  padding: 8px 10px;
   resize: vertical;
-  min-height: 96px;
+  min-height: 64px;
   font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
@@ -2144,6 +2146,10 @@
 
   .main-layout {
     grid-template-columns: 1fr;
+  }
+
+  .main-layout__gallery {
+    max-width: none;
   }
 
   .book-viewer__sidebar {
