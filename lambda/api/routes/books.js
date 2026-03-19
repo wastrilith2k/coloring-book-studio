@@ -14,7 +14,7 @@ import {
   updateBookCoverUrl,
   nextCoverAttemptNumber,
 } from '../../lib/db.js';
-import { uploadToS3, getPresignedUrl, buildCoverKey } from '../../lib/s3.js';
+import { uploadToS3, getPresignedUrl, getObjectBuffer, buildCoverKey } from '../../lib/s3.js';
 import { json, noContent } from '../../lib/cors.js';
 
 const resolvePresignedUrls = async (items, urlField = 'url') => {
@@ -146,23 +146,28 @@ export const handleBooks = async (ctx) => {
       return json(400, { error: 'Not all pages have approved images' }, origin);
     }
 
-    const files = [];
+    // Fetch images from S3 and return as base64 to avoid CORS issues
+    const fileEntries = [];
     if (book.cover_url) {
-      files.push({
-        name: '00-cover.png',
-        url: book.cover_url.startsWith('users/') ? await getPresignedUrl(book.cover_url) : book.cover_url,
-      });
+      fileEntries.push({ name: '00-cover.png', key: book.cover_url });
     }
     for (const page of pages) {
-      const url = page.image_url.startsWith('users/')
-        ? await getPresignedUrl(page.image_url)
-        : page.image_url;
       const slug = (page.title || 'page').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
-      files.push({
+      fileEntries.push({
         name: `${String(page.sort_order ?? page.id).padStart(2, '0')}-${slug}.png`,
-        url,
+        key: page.image_url,
       });
     }
+
+    const files = await Promise.all(fileEntries.map(async (entry) => {
+      if (entry.key.startsWith('users/')) {
+        const buffer = await getObjectBuffer(entry.key);
+        return { name: entry.name, data: buffer.toString('base64') };
+      }
+      // External URL fallback — return presigned URL for client to fetch
+      return { name: entry.name, url: entry.key };
+    }));
+
     return json(200, { files, title: book.title }, origin);
   }
 

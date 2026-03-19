@@ -19,6 +19,13 @@ export const getPresignedUrl = async (key, expiresIn = 3600) => {
   return getSignedUrl(s3, command, { expiresIn });
 };
 
+export const getObjectBuffer = async (key) => {
+  const { Body } = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  const chunks = [];
+  for await (const chunk of Body) chunks.push(chunk);
+  return Buffer.concat(chunks);
+};
+
 export const deleteFromS3 = async (key) => {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 };
