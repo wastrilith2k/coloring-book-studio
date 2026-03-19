@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
+  Info,
   Loader2,
   Plus,
   Sparkles,
@@ -15,6 +17,107 @@ import {
 import { apiFetch } from '../lib/api.js';
 
 const STYLE_HINT = 'Black and white UNCOLORED coloring book page. Thick clean outlines only, no shading, no filled colors, no gradients. Pure white background. Leave all areas blank for a child to color in.';
+
+const PROMPT_TIPS = {
+  style: [
+    'Describe recurring characters, art style, or line weight.',
+    'e.g. "Cartoon cat with big eyes, thick outlines, simple shapes"',
+    'This is prepended to every generation for consistency.',
+  ],
+  scene: [
+    'Describe what happens on this specific page.',
+    'Say "no text" if you don\'t want words in the image.',
+    'Be specific about composition: foreground, background, borders.',
+    'A coloring-book style hint is automatically appended.',
+  ],
+  caption: [
+    'Text printed below the image in the final book.',
+    'Not sent to the image generator — purely for print layout.',
+    'e.g. "Color the dragon\'s scales any color you like!"',
+  ],
+  cover: [
+    'Describe the cover illustration for the book.',
+    'Mention where the title should go (e.g. "room for title at top").',
+    'Say "no text" unless you want the AI to render lettering.',
+  ],
+};
+
+const PROMPT_GUIDE = [
+  {
+    title: 'Character / Style prompt',
+    items: [
+      'This prompt is shared across ALL pages. Use it for anything you want consistent on every page.',
+      'Put recurring elements here: character descriptions, art style, line weight, borders, or decorative frames.',
+      'Example: "A friendly cartoon owl with big round eyes. Thick black outlines. Decorative vine border around the edge of each page."',
+      'Changes here affect future generations for every page in the book.',
+    ],
+  },
+  {
+    title: 'Scene prompt',
+    items: [
+      'This prompt is unique to each page. Describe what happens in this specific scene.',
+      'Be specific about composition: what\'s in the foreground vs. background, left vs. right.',
+      'Say "no text" or "do not include any words or letters" to prevent the AI from rendering text.',
+      'If you DO want text, spell it out exactly: \'The text should read "Hello World"\'.',
+      'A coloring-book style hint (black & white outlines, no shading) is automatically appended.',
+    ],
+  },
+  {
+    title: 'Print caption',
+    items: [
+      'This text appears below the image in the printed book only.',
+      'It is NOT sent to the image generator \u2014 the AI never sees it.',
+      'Great for instructions like "Color the dragon\'s scales!" or educational content.',
+    ],
+  },
+  {
+    title: 'General tips',
+    items: [
+      'Simpler prompts often produce cleaner coloring pages. Avoid over-describing.',
+      'If results have unwanted shading or color, add "absolutely no shading, no gray areas" to the scene prompt.',
+      'Generate multiple attempts and use "Select" to pick the best one for each page.',
+      'You can download any individual image before finalizing the book.',
+    ],
+  },
+];
+
+function PromptTip({ tips }) {
+  return (
+    <span className="prompt-tip">
+      <Info size={14} className="prompt-tip__icon" />
+      <span className="prompt-tip__popup">
+        {tips.map((t, i) => <span key={i} className="prompt-tip__line">{t}</span>)}
+      </span>
+    </span>
+  );
+}
+
+function PromptGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`prompt-guide ${open ? 'is-open' : ''}`}>
+      <button className="prompt-guide__toggle" onClick={() => setOpen(o => !o)}>
+        <Info size={14} />
+        <span>Prompt writing guide</span>
+        <ChevronDown size={14} className={`prompt-guide__chevron ${open ? 'is-open' : ''}`} />
+      </button>
+      {open && (
+        <div className="prompt-guide__body">
+          {PROMPT_GUIDE.map((section, i) => (
+            <div key={i} className="prompt-guide__section">
+              <h4 className="prompt-guide__heading">{section.title}</h4>
+              <ul className="prompt-guide__list">
+                {section.items.map((item, j) => (
+                  <li key={j}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -644,10 +747,12 @@ export default function BookViewer({
               </p>
             </div>
 
+            <PromptGuide />
+
             {isCover ? (
               <div className="prompt-stack">
                 <div className="prompt-field">
-                  <label htmlFor="cover-text">Cover prompt</label>
+                  <label htmlFor="cover-text">Cover prompt <PromptTip tips={PROMPT_TIPS.cover} /></label>
                   <textarea
                     id="cover-text"
                     value={coverPrompt}
@@ -655,15 +760,12 @@ export default function BookViewer({
                     placeholder="Describe the cover illustration."
                     rows={3}
                   />
-                  <div className="prompt-hint">
-                    Include title placement notes (e.g., "room for title at top").
-                  </div>
                 </div>
               </div>
             ) : (
               <div className="prompt-stack">
                 <div className="prompt-field">
-                  <label htmlFor="character-text">Character / style prompt</label>
+                  <label htmlFor="character-text">Character / style prompt <PromptTip tips={PROMPT_TIPS.style} /></label>
                   <textarea
                     id="character-text"
                     value={currentStyle}
@@ -676,7 +778,7 @@ export default function BookViewer({
                   {styleError && <div className="book-viewer__alert">{styleError}</div>}
                 </div>
                 <div className="prompt-field">
-                  <label htmlFor="scene-text">Scene prompt</label>
+                  <label htmlFor="scene-text">Scene prompt <PromptTip tips={PROMPT_TIPS.scene} /></label>
                   <textarea
                     id="scene-text"
                     value={currentPrompt}
@@ -687,12 +789,9 @@ export default function BookViewer({
                   />
                   {currentState.promptSaving && <span className="pill subtle">Saving...</span>}
                   {promptError && <div className="book-viewer__alert">{promptError}</div>}
-                  <div className="prompt-hint">
-                    Style hint auto-added: "{STYLE_HINT.slice(0, 60)}..."
-                  </div>
                 </div>
                 <div className="prompt-field">
-                  <label htmlFor="caption-text">Print caption</label>
+                  <label htmlFor="caption-text">Print caption <PromptTip tips={PROMPT_TIPS.caption} /></label>
                   <textarea
                     id="caption-text"
                     value={currentCaption}
