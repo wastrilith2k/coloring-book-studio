@@ -470,6 +470,7 @@ export default function App({ signOut, user }) {
         scene: p.scene || p.prompt || '',
         prompt: p.prompt || p.scene || '',
         caption: p.caption || '',
+        notes: p.notes || '',
         characterStyle:
           p.character_style || p.characterStyle || bookData?.concept || '',
         includeCharacterGuide: true,
@@ -593,6 +594,7 @@ export default function App({ signOut, user }) {
                   storyPages={preparedPages}
                   bookTitle={bookData?.title || activeBook.title}
                   tagLine={bookData?.tagLine || ''}
+                  bookNotes={bookData?.notes || ''}
                 />
               </div>
             </div>

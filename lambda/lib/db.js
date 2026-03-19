@@ -22,10 +22,13 @@ export const ensureSchema = async () => {
     await db.execute(sql);
   }
   // Migrations
-  try {
-    await db.execute("ALTER TABLE pages ADD COLUMN caption TEXT DEFAULT ''");
-  } catch {
-    // Column already exists — ignore
+  const migrations = [
+    "ALTER TABLE pages ADD COLUMN caption TEXT DEFAULT ''",
+    "ALTER TABLE pages ADD COLUMN notes TEXT DEFAULT ''",
+    "ALTER TABLE books ADD COLUMN notes TEXT DEFAULT ''",
+  ];
+  for (const sql of migrations) {
+    try { await db.execute(sql); } catch { /* column already exists */ }
   }
   initialized = true;
 };
@@ -286,7 +289,7 @@ export const getPage = async (id) => {
   return rows[0] || null;
 };
 
-export const updatePage = async (id, { title, scene, prompt, characterStyle, imageUrl, sortOrder, caption }) => {
+export const updatePage = async (id, { title, scene, prompt, characterStyle, imageUrl, sortOrder, caption, notes }) => {
   const db = getDb();
   await db.execute({
     sql: `UPDATE pages SET
@@ -296,12 +299,26 @@ export const updatePage = async (id, { title, scene, prompt, characterStyle, ima
       character_style = COALESCE(?, character_style),
       image_url = COALESCE(?, image_url),
       sort_order = COALESCE(?, sort_order),
-      caption = COALESCE(?, caption)
+      caption = COALESCE(?, caption),
+      notes = COALESCE(?, notes)
     WHERE id = ?`,
-    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, id],
+    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, id],
   });
   const { rows } = await db.execute({
     sql: 'SELECT * FROM pages WHERE id = ?',
+    args: [id],
+  });
+  return rows[0] || null;
+};
+
+export const updateBook = async (id, { notes }) => {
+  const db = getDb();
+  await db.execute({
+    sql: `UPDATE books SET notes = COALESCE(?, notes) WHERE id = ?`,
+    args: [notes ?? null, id],
+  });
+  const { rows } = await db.execute({
+    sql: 'SELECT * FROM books WHERE id = ?',
     args: [id],
   });
   return rows[0] || null;

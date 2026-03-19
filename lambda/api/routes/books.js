@@ -4,6 +4,7 @@ import {
   insertBook,
   insertPages,
   deleteBook,
+  updateBook,
   verifyBookOwnership,
   listCoverAttempts,
   insertCoverAttempt,
@@ -163,6 +164,16 @@ export const handleBooks = async (ctx) => {
       });
     }
     return json(200, { files, title: book.title }, origin);
+  }
+
+  // --- PUT /api/books/:id ---
+  if (bookId && !rest && method === 'PUT') {
+    if (!(await verifyBookOwnership(bookId, userId))) {
+      return json(404, { error: 'book not found' }, origin);
+    }
+    const updated = await updateBook(bookId, body);
+    if (!updated) return json(404, { error: 'not found' }, origin);
+    return json(200, { book: updated }, origin);
   }
 
   // --- DELETE /api/books/:id ---
