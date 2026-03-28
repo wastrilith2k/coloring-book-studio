@@ -117,12 +117,9 @@ export class ColoringBookStudioStack extends cdk.Stack {
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
       environment: {
-        TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL || '',
-        TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN || '',
-        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
         S3_BUCKET_NAME: imageBucket.bucketName,
         ALLOWED_ORIGINS: allowedOrigins.join(','),
+        // Secrets loaded from SSM Parameter Store at runtime: /coloring-book-studio/*
       },
     });
 
@@ -134,10 +131,8 @@ export class ColoringBookStudioStack extends cdk.Stack {
       memorySize: 512,
       timeout: cdk.Duration.minutes(5),
       environment: {
-        TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL || '',
-        TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN || '',
-        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
         S3_BUCKET_NAME: imageBucket.bucketName,
+        // Secrets loaded from SSM Parameter Store at runtime: /coloring-book-studio/*
       },
     });
 
@@ -158,6 +153,14 @@ export class ColoringBookStudioStack extends cdk.Stack {
     // Grant S3 permissions
     imageBucket.grantReadWrite(httpApiLambda);
     imageBucket.grantRead(wsLambda);
+
+    // Grant SSM Parameter Store read access for secrets
+    const ssmPolicy = new iam.PolicyStatement({
+      actions: ['ssm:GetParametersByPath'],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/coloring-book-studio/*`],
+    });
+    httpApiLambda.addToRolePolicy(ssmPolicy);
+    wsLambda.addToRolePolicy(ssmPolicy);
 
     // ─── 5. HTTP API Gateway ────────────────────────────────────────────
 

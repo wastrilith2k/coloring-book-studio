@@ -1,6 +1,7 @@
 import { getUserId } from '../lib/auth.js';
 import { getCorsHeaders, json } from '../lib/cors.js';
 import { ensureSchema } from '../lib/db.js';
+import { loadSecrets } from '../lib/secrets.js';
 import { handleBooks } from './routes/books.js';
 import { handlePages } from './routes/pages.js';
 import { handleImages } from './routes/images.js';
@@ -15,7 +16,7 @@ export const handler = async (event) => {
   }
 
   try {
-    // Auto-create tables on first request (idempotent)
+    await loadSecrets();
     await ensureSchema();
     const userId = getUserId(event);
     const method = event.requestContext?.http?.method || 'GET';

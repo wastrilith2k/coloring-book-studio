@@ -2,12 +2,14 @@ import { connect } from './actions/connect.js';
 import { disconnect } from './actions/disconnect.js';
 import { sendMessage } from './actions/sendMessage.js';
 import { generateIdeas } from './actions/generateIdeas.js';
+import { loadSecrets } from '../lib/secrets.js';
 
 export const handler = async (event) => {
   const routeKey = event.requestContext?.routeKey;
   const connectionId = event.requestContext?.connectionId;
 
   try {
+    await loadSecrets();
     switch (routeKey) {
       case '$connect':
         return await connect(event);
