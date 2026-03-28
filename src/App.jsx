@@ -16,6 +16,7 @@ import {
   Plus,
   ArrowLeft,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import BookViewer from './components/BookViewer.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
@@ -160,7 +161,7 @@ function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setC
   );
 }
 
-function WizardStep2({ concept, generating, error }) {
+function WizardStep2({ concept, generating, error, onRetryPage, onRetryAll, retryingPages, retryingAll }) {
   if (generating) {
     return (
       <div className="wizard-content wizard-center">
@@ -196,13 +197,29 @@ function WizardStep2({ concept, generating, error }) {
             {(concept.pages || []).map((p, i) => (
               <div key={i} className="concept-page-item">
                 <span className="concept-page-num">{i + 1}</span>
-                <div>
+                <div className="concept-page-content">
                   <p className="concept-page-title">{p.title}</p>
                   <p className="concept-page-scene">{p.scene || p.prompt}</p>
                 </div>
+                <button
+                  className="concept-page-retry"
+                  onClick={() => onRetryPage(i)}
+                  disabled={retryingPages?.[i] || retryingAll}
+                  title="Regenerate this page"
+                >
+                  <RefreshCw size={14} className={retryingPages?.[i] ? 'spin' : ''} />
+                </button>
               </div>
             ))}
           </div>
+          <button
+            className="btn ghost concept-retry-all"
+            onClick={onRetryAll}
+            disabled={retryingAll || generating}
+          >
+            <RefreshCw size={14} className={retryingAll ? 'spin' : ''} />
+            {retryingAll ? 'Regenerating...' : 'Regenerate All Pages'}
+          </button>
         </div>
       </div>
     </div>
@@ -303,6 +320,59 @@ function Wizard({ onBookCreated }) {
     }
   };
 
+  const [retryingPages, setRetryingPages] = useState({});
+  const [retryingAll, setRetryingAll] = useState(false);
+
+  const handleRetryPage = async (pageIndex) => {
+    if (!concept) return;
+    setRetryingPages(prev => ({ ...prev, [pageIndex]: true }));
+    try {
+      const res = await apiFetch('/api/ideas/page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: effectiveTheme,
+          audience,
+          pageIndex,
+          bookTitle: concept.title,
+          concept: concept.concept,
+          existingPages: concept.pages,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to regenerate page');
+      setConcept(prev => ({
+        ...prev,
+        pages: prev.pages.map((p, i) => i === pageIndex ? data.page : p),
+      }));
+    } catch (e) {
+      setError(e.message);
+    }
+    setRetryingPages(prev => ({ ...prev, [pageIndex]: false }));
+  };
+
+  const handleRetryAll = async () => {
+    setRetryingAll(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: effectiveTheme, length: pageCount, audience }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to regenerate');
+      const newIdea = data.idea || data;
+      setConcept(prev => ({
+        ...prev,
+        pages: newIdea.pages || prev.pages,
+      }));
+    } catch (e) {
+      setError(e.message);
+    }
+    setRetryingAll(false);
+  };
+
   const steps = [
     { num: 1, label: 'Theme' },
     { num: 2, label: 'Concept' },
@@ -351,7 +421,15 @@ function Wizard({ onBookCreated }) {
           />
         )}
         {step === 2 && (
-          <WizardStep2 concept={concept} generating={generating} error={error} />
+          <WizardStep2
+            concept={concept}
+            generating={generating}
+            error={error}
+            onRetryPage={handleRetryPage}
+            onRetryAll={handleRetryAll}
+            retryingPages={retryingPages}
+            retryingAll={retryingAll}
+          />
         )}
         {step === 3 && <WizardStep3 saving={saving} saved={saved} error={error} />}
 
