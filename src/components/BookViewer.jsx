@@ -29,6 +29,7 @@ export default function BookViewer({
   bookTitle = 'Book',
   tagLine = '',
   bookNotes: initialBookNotes = '',
+  onPagesChanged,
 }) {
   const pages = useMemo(
     () => (storyPages && storyPages.length ? storyPages : []),
@@ -239,6 +240,36 @@ export default function BookViewer({
     setAiGenerating(false);
   };
 
+  const handleAddPage = async () => {
+    if (!bookId) return;
+    try {
+      const res = await apiFetch(`/api/books/${bookId}/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages: [{ title: 'New Page', scene: '', prompt: '' }] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to add page');
+      if (typeof onPagesChanged === 'function') onPagesChanged();
+    } catch (e) {
+      setPromptError(e.message);
+    }
+  };
+
+  const handleDeletePage = async (pageId) => {
+    if (!pageId || !bookId) return;
+    try {
+      const res = await apiFetch(`/api/pages/${pageId}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data?.error || 'Failed to delete page');
+      }
+      if (typeof onPagesChanged === 'function') onPagesChanged();
+    } catch (e) {
+      setPromptError(e.message);
+    }
+  };
+
   // --- Image generation ---
   const generateImage = async () => {
     if (!prompt || !activePage) return;
@@ -392,6 +423,8 @@ export default function BookViewer({
           pageState={pageState}
           approvedUrlForPage={approvedUrlForPage}
           pageTitles={pageTitles}
+          onAddPage={handleAddPage}
+          onDeletePage={handleDeletePage}
         />
       </aside>
 

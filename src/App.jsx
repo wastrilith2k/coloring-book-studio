@@ -706,6 +706,7 @@ export default function App({ signOut, user }) {
                   bookTitle={bookData?.title || activeBook.title}
                   tagLine={bookData?.tagLine || ''}
                   bookNotes={bookData?.notes || ''}
+                  onPagesChanged={() => fetchBook(activeId)}
                 />
               </div>
             </div>

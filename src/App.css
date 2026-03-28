@@ -2483,3 +2483,79 @@
   font-size: 12px;
   gap: 4px;
 }
+
+/* Page card wrap for delete button */
+.page-card-wrap {
+  position: relative;
+}
+
+.page-card__delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.page-card-wrap:hover .page-card__delete {
+  opacity: 1;
+}
+
+.page-card__delete:hover {
+  color: var(--danger, #e53e3e);
+}
+
+.page-card__confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.btn-tiny {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.btn-tiny.danger {
+  color: #fff;
+  background: var(--danger, #e53e3e);
+  border-color: var(--danger, #e53e3e);
+}
+
+/* Add page button */
+.page-card--add {
+  border: 2px dashed var(--border-default);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  background: transparent;
+}
+
+.page-card--add:hover {
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
