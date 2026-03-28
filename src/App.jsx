@@ -92,7 +92,7 @@ function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setC
             className="wizard-input"
             type="text"
             placeholder="Describe your theme..."
-            value={customTheme.trim()}
+            value={customTheme}
             onChange={e => { setCustomTheme(e.target.value); setTheme(''); }}
             autoFocus
           />
