@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3 = new S3Client();
@@ -35,3 +35,12 @@ export const buildImageKey = (userId, bookId, pageId, attemptNumber) =>
 
 export const buildCoverKey = (userId, bookId, attemptNumber) =>
   `users/${userId}/books/${bookId}/cover/attempt-${attemptNumber}.png`;
+
+export const objectExists = async (key) => {
+  try {
+    await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
+};

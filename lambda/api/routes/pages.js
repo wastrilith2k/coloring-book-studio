@@ -9,7 +9,8 @@ import {
   deleteImageAttempt,
   nextAttemptNumber,
 } from '../../lib/db.js';
-import { uploadToS3, getPresignedUrl, buildImageKey } from '../../lib/s3.js';
+import { uploadToS3, getPresignedUrl, getObjectBuffer, objectExists, buildImageKey } from '../../lib/s3.js';
+import { printKey, upscaleForPrint } from '../../lib/image.js';
 import { json, noContent } from '../../lib/cors.js';
 
 const resolvePresignedUrls = async (items, urlField = 'url') => {
@@ -58,7 +59,14 @@ export const handlePages = async (ctx) => {
       const { approved = true } = body;
       const updated = await updateImageApproval(imageId, approved);
       if (approved) {
-        await updatePage(pageId, { imageUrl: updated.url });
+        // Upscale to print resolution if not already done
+        const pKey = printKey(updated.url);
+        if (!(await objectExists(pKey))) {
+          const original = await getObjectBuffer(updated.url);
+          const upscaled = await upscaleForPrint(original);
+          await uploadToS3(upscaled, pKey);
+        }
+        await updatePage(pageId, { imageUrl: pKey });
       }
       const resolved = (await resolvePresignedUrls([updated]))[0];
       return json(200, { image: resolved }, origin);

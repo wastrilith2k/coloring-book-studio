@@ -14,7 +14,8 @@ import {
   updateBookCoverUrl,
   nextCoverAttemptNumber,
 } from '../../lib/db.js';
-import { uploadToS3, getPresignedUrl, getObjectBuffer, buildCoverKey } from '../../lib/s3.js';
+import { uploadToS3, getPresignedUrl, getObjectBuffer, objectExists, buildCoverKey } from '../../lib/s3.js';
+import { printKey, upscaleForPrint } from '../../lib/image.js';
 import { json, noContent } from '../../lib/cors.js';
 
 const resolvePresignedUrls = async (items, urlField = 'url') => {
@@ -80,7 +81,14 @@ export const handleBooks = async (ctx) => {
       const { approved = true } = body;
       const updated = await updateCoverApproval(imageId, approved);
       if (approved) {
-        await updateBookCoverUrl(bookId, updated.url);
+        // Upscale to print resolution if not already done
+        const pKey = printKey(updated.url);
+        if (!(await objectExists(pKey))) {
+          const original = await getObjectBuffer(updated.url);
+          const upscaled = await upscaleForPrint(original);
+          await uploadToS3(upscaled, pKey);
+        }
+        await updateBookCoverUrl(bookId, pKey);
       } else {
         await updateBookCoverUrl(bookId, '');
       }
