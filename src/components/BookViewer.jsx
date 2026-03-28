@@ -62,6 +62,7 @@ export default function BookViewer({
   const [pagePrompts, setPagePrompts] = useState({});
   const [pageCaptions, setPageCaptions] = useState({});
   const [pageNotes, setPageNotes] = useState({});
+  const [pageTitles, setPageTitles] = useState({});
   const [bookNotes, setBookNotes] = useState(initialBookNotes);
   const [bundleError, setBundleError] = useState('');
   const [bundleLoading, setBundleLoading] = useState(false);
@@ -73,17 +74,19 @@ export default function BookViewer({
 
   // --- Init on book change ---
   useEffect(() => {
-    const s = {}, pr = {}, c = {}, n = {};
+    const s = {}, pr = {}, c = {}, n = {}, t = {};
     pages.forEach(p => {
       s[p.id] = p.characterStyle ?? characterGuide ?? '';
       pr[p.id] = p.prompt || p.scene || '';
       c[p.id] = p.caption || '';
       n[p.id] = p.notes || '';
+      t[p.id] = p.title || '';
     });
     setPageStyles(s);
     setPagePrompts(pr);
     setPageCaptions(c);
     setPageNotes(n);
+    setPageTitles(t);
     setBookNotes(initialBookNotes);
     setActivePage(navPages[0] ?? null);
     setPageState({});
@@ -196,6 +199,45 @@ export default function BookViewer({
   const handleBookNotesChange = e => setBookNotes(e.target.value);
   const handleBookNotesBlur = () => saveBookNotes(bookNotes);
   const handleCoverPromptChange = e => setCoverPrompt(e.target.value);
+
+  const handleTitleChange = e => { if (activePage && !isCover) setPageTitles(p => ({ ...p, [activePage.id]: e.target.value })); };
+  const handleTitleBlur = () => { if (activePage && !isCover) saveField('title', pageTitles[activePage.id] ?? ''); };
+
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const handleAiGenerate = async () => {
+    if (!activePage || isCover || !bookId) return;
+    setAiGenerating(true);
+    try {
+      const res = await apiFetch('/api/ideas/page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: characterGuide,
+          audience: 'kids',
+          pageIndex: pages.indexOf(activePage),
+          bookTitle,
+          concept: characterGuide,
+          existingPages: pages.map(p => ({ title: pageTitles[p.id] || p.title, scene: pagePrompts[p.id] || p.scene })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to generate');
+      const page = data.page;
+      if (page.title) setPageTitles(p => ({ ...p, [activePage.id]: page.title }));
+      if (page.scene || page.prompt) {
+        const scene = page.scene || page.prompt;
+        setPagePrompts(p => ({ ...p, [activePage.id]: scene }));
+      }
+      // Save to backend
+      await apiFetch(`/api/pages/${activePage.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: page.title, scene: page.scene || page.prompt, prompt: page.prompt || page.scene }),
+      });
+    } catch (e) {
+      setPromptError(e.message);
+    }
+    setAiGenerating(false);
+  };
 
   // --- Image generation ---
   const generateImage = async () => {
@@ -349,6 +391,7 @@ export default function BookViewer({
           setActivePage={setActivePage}
           pageState={pageState}
           approvedUrlForPage={approvedUrlForPage}
+          pageTitles={pageTitles}
         />
       </aside>
 
@@ -377,6 +420,12 @@ export default function BookViewer({
             currentPageNotes={activePage && !isCover ? pageNotes[activePage.id] ?? '' : ''}
             onPageNotesChange={handlePageNotesChange}
             onPageNotesBlur={handlePageNotesBlur}
+            currentTitle={activePage && !isCover ? pageTitles[activePage.id] ?? '' : ''}
+            onTitleChange={handleTitleChange}
+            onTitleBlur={handleTitleBlur}
+            titleSaving={currentState.titleSaving}
+            onAiGenerate={handleAiGenerate}
+            aiGenerating={aiGenerating}
             imageError={imageError}
             genError={genError}
           />

@@ -1,4 +1,4 @@
-import { AlertCircle, StickyNote } from 'lucide-react';
+import { AlertCircle, Sparkles, StickyNote } from 'lucide-react';
 import PromptTip, { PROMPT_TIPS } from './PromptTip.jsx';
 import PromptGuide from './PromptGuide.jsx';
 
@@ -30,6 +30,14 @@ export default function PromptPanel({
   currentPageNotes,
   onPageNotesChange,
   onPageNotesBlur,
+  // Title editing
+  currentTitle,
+  onTitleChange,
+  onTitleBlur,
+  titleSaving,
+  // AI Generate
+  onAiGenerate,
+  aiGenerating,
   // Errors
   imageError,
   genError,
@@ -38,7 +46,19 @@ export default function PromptPanel({
     <div className="main-layout__prompts">
       <div className="book-viewer__header">
         <p className="book-viewer__crumb">Workspace &gt; {bookTitle}</p>
-        <h2>{activePage?.title ?? 'Select a page'}</h2>
+        {activePage && !isCover ? (
+          <input
+            className="page-title-input"
+            type="text"
+            value={currentTitle ?? activePage?.title ?? ''}
+            onChange={onTitleChange}
+            onBlur={onTitleBlur}
+            placeholder="Page title..."
+          />
+        ) : (
+          <h2>{activePage?.title ?? 'Select a page'}</h2>
+        )}
+        {titleSaving && <span className="pill subtle">Saving...</span>}
         <p className="book-viewer__scene">
           {activePage?.scene ?? 'Choose a page to generate an illustration.'}
         </p>
@@ -86,6 +106,12 @@ export default function PromptPanel({
             />
             {promptSaving && <span className="pill subtle">Saving...</span>}
             {promptError && <div className="book-viewer__alert">{promptError}</div>}
+            {onAiGenerate && !currentPrompt?.trim() && (
+              <button className="btn ghost ai-gen-btn" onClick={onAiGenerate} disabled={aiGenerating}>
+                <Sparkles size={14} />
+                {aiGenerating ? 'Generating...' : 'AI Generate Description'}
+              </button>
+            )}
           </div>
           <div className="prompt-field">
             <label htmlFor="caption-text">Print caption <PromptTip tips={PROMPT_TIPS.caption} /></label>

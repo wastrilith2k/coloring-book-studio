@@ -1,6 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 
-export default function PageList({ navPages, activePage, setActivePage, pageState, approvedUrlForPage }) {
+export default function PageList({ navPages, activePage, setActivePage, pageState, approvedUrlForPage, pageTitles }) {
   return (
     <div className="book-viewer__list">
       {!navPages.length && (
@@ -17,7 +17,7 @@ export default function PageList({ navPages, activePage, setActivePage, pageStat
             onClick={() => setActivePage(p)}
             className={`page-card ${activePage?.id === p.id ? 'is-active' : ''}`}
           >
-            <p className="page-card__title">{p.title}</p>
+            <p className="page-card__title">{pageTitles?.[p.id] ?? p.title}</p>
             <p className="page-card__meta">{p.isCover ? 'Cover' : `Scene #${p.id}`}</p>
             <div className="page-card__thumb-wrap">
               {thumbUrl ? (

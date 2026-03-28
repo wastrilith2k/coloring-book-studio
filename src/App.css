@@ -2453,3 +2453,33 @@
 .spin {
   animation: spin 0.8s linear infinite;
 }
+
+/* Editable page title */
+.page-title-input {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  width: calc(100% + 16px);
+  transition: border-color 0.15s;
+}
+
+.page-title-input:hover {
+  border-color: var(--border-default);
+}
+
+.page-title-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* AI generate button */
+.ai-gen-btn {
+  margin-top: 4px;
+  font-size: 12px;
+  gap: 4px;
+}
