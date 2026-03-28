@@ -2559,3 +2559,45 @@
   color: var(--text-primary);
   border-color: var(--text-primary);
 }
+
+/* Library item delete */
+.library-item-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.library-item-wrap .library-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-item__delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.library-item-wrap:hover .library-item__delete {
+  opacity: 1;
+}
+
+.library-item__delete:hover {
+  color: var(--danger, #e53e3e);
+}
+
+.library-item__confirm {
+  display: flex;
+  gap: 4px;
+  padding-right: 4px;
+}

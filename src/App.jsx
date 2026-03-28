@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   X,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import BookViewer from './components/BookViewer.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
@@ -460,8 +461,9 @@ function Wizard({ onBookCreated }) {
 
 /* ---------- Top Bar ---------- */
 
-function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme, toggleTheme, chatOpen, toggleChat }) {
+function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, onDeleteBook, theme, toggleTheme, chatOpen, toggleChat }) {
   const [showLibrary, setShowLibrary] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const activeBook = books.find(b => `${b.id}` === `${activeId}`) ?? null;
 
   return (
@@ -506,14 +508,29 @@ function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, theme,
                   <div className="library-dropdown__empty">No books yet</div>
                 )}
                 {books.map(book => (
-                  <button
-                    key={book.id}
-                    className={`library-item ${`${activeId}` === `${book.id}` ? 'is-active' : ''}`}
-                    onClick={() => { setActiveId(book.id); setShowLibrary(false); }}
-                  >
-                    <BookOpen size={14} />
-                    <span>{book.title}</span>
-                  </button>
+                  <div key={book.id} className="library-item-wrap">
+                    <button
+                      className={`library-item ${`${activeId}` === `${book.id}` ? 'is-active' : ''}`}
+                      onClick={() => { setActiveId(book.id); setShowLibrary(false); }}
+                    >
+                      <BookOpen size={14} />
+                      <span>{book.title}</span>
+                    </button>
+                    {confirmDeleteId === book.id ? (
+                      <div className="library-item__confirm">
+                        <button className="btn-tiny danger" onClick={() => { onDeleteBook(book.id); setConfirmDeleteId(null); }}>Delete</button>
+                        <button className="btn-tiny" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button
+                        className="library-item__delete"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(book.id); }}
+                        title="Delete book"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </>
@@ -651,6 +668,24 @@ export default function App({ signOut, user }) {
     fetchBooks();
   };
 
+  const handleDeleteBook = async (bookId) => {
+    try {
+      const res = await apiFetch(`/api/books/${bookId}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data?.error || 'Failed to delete book');
+      }
+      setBooks(prev => prev.filter(b => `${b.id}` !== `${bookId}`));
+      if (`${activeId}` === `${bookId}`) {
+        const remaining = books.filter(b => `${b.id}` !== `${bookId}`);
+        setActiveId(remaining[0]?.id?.toString() || null);
+        setBookData(null);
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   // Show wizard if no books and done loading
   const shouldShowWizard = showWizard || (!loadingBooks && books.length === 0 && !error);
 
@@ -663,6 +698,7 @@ export default function App({ signOut, user }) {
         user={user}
         signOut={signOut}
         onNewBook={() => setShowWizard(true)}
+        onDeleteBook={handleDeleteBook}
         theme={theme}
         toggleTheme={toggleTheme}
         chatOpen={chatOpen}
@@ -701,6 +737,7 @@ export default function App({ signOut, user }) {
               <div className="workspace__viewer">
                 <BookViewer
                   bookId={bookData?.id || activeBook.id}
+                  coverUrl={bookData?.cover_url || ''}
                   characterGuide={bookData?.concept || ''}
                   storyPages={preparedPages}
                   bookTitle={bookData?.title || activeBook.title}
