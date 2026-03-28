@@ -60,7 +60,7 @@ const AUDIENCES = [
   { label: 'Adults', value: 'adults', desc: 'Intricate, meditative designs' },
 ];
 
-function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setCustomTheme, onNext }) {
+function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setCustomTheme, pageCount, setPageCount, onNext }) {
   return (
     <div className="wizard-content">
       <div className="wizard-section">
@@ -115,6 +115,36 @@ function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setC
               <span className="audience-card__desc">{a.desc}</span>
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="wizard-section">
+        <h3 className="wizard-section-title">
+          <Layers size={18} />
+          Number of Pages
+        </h3>
+        <div className="page-count-picker">
+          <button
+            className="page-count-btn"
+            onClick={() => setPageCount(c => Math.max(5, c - 1))}
+            disabled={pageCount <= 5}
+          >-</button>
+          <input
+            className="page-count-input"
+            type="number"
+            min={5}
+            max={50}
+            value={pageCount}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v)) setPageCount(Math.max(5, Math.min(50, v)));
+            }}
+          />
+          <button
+            className="page-count-btn"
+            onClick={() => setPageCount(c => Math.min(50, c + 1))}
+            disabled={pageCount >= 50}
+          >+</button>
         </div>
       </div>
 
@@ -214,6 +244,7 @@ function Wizard({ onBookCreated }) {
   const [theme, setTheme] = useState('');
   const [customTheme, setCustomTheme] = useState('');
   const [audience, setAudience] = useState('kids');
+  const [pageCount, setPageCount] = useState(20);
   const [concept, setConcept] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -230,7 +261,7 @@ function Wizard({ onBookCreated }) {
       const res = await apiFetch('/api/ideas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: effectiveTheme, length: 8, audience }),
+        body: JSON.stringify({ theme: effectiveTheme, length: pageCount, audience }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to generate concept');
@@ -314,6 +345,8 @@ function Wizard({ onBookCreated }) {
             setAudience={setAudience}
             customTheme={customTheme}
             setCustomTheme={setCustomTheme}
+            pageCount={pageCount}
+            setPageCount={setPageCount}
             onNext={handleGenerate}
           />
         )}

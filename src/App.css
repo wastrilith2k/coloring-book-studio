@@ -891,6 +891,61 @@
   color: var(--success);
 }
 
+/* Page count picker */
+.page-count-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.page-count-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.page-count-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.page-count-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-count-input {
+  width: 64px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.page-count-input::-webkit-inner-spin-button,
+.page-count-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.page-count-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
 /* ---------- Concept Preview (Wizard Step 2) ---------- */
 .concept-preview {
   display: flex;
