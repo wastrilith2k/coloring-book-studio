@@ -51,7 +51,7 @@ export const handler = async (event) => {
       const { theme = '', audience = 'kids', length = 8 } = body;
 
       // Validate and clamp length
-      const sceneCount = Math.max(1, Math.min(20, Number(length) || 8));
+      const sceneCount = Math.max(1, Math.min(50, Number(length) || 20));
 
       const systemPrompt = 'You are a coloring book planner. Propose a book concept and page scenes with concise prompts. Respond in JSON with keys: title, tagLine, concept, pages (array of {title, scene, prompt}). Keep prompts coloring-book friendly.';
       const messages = [
@@ -68,6 +68,37 @@ export const handler = async (event) => {
         parsed = { raw: text };
       }
       return json(200, { idea: parsed, raw: text }, origin);
+    }
+
+    // POST /api/ideas/page — regenerate a single page description
+    if (path === '/api/ideas/page' && method === 'POST') {
+      const { chatCompletion } = await import('../lib/openrouter.js');
+      const { theme = '', audience = 'kids', pageIndex = 0, bookTitle = '', concept = '', existingPages = [] } = body;
+
+      const pageList = existingPages.map((p, i) => `${i + 1}. ${p.title}: ${p.scene}`).join('\n');
+      const systemPrompt = `You are a coloring book planner. Given the book context below, regenerate ONLY page ${Number(pageIndex) + 1}. Return JSON: {"title": "...", "scene": "...", "prompt": "..."}. Keep it coloring-book friendly and consistent with the other pages.`;
+      const userContent = [
+        bookTitle ? `Book: ${bookTitle}` : '',
+        concept ? `Concept: ${concept}` : '',
+        theme ? `Theme: ${String(theme).slice(0, 500)}` : '',
+        `Audience: ${String(audience).slice(0, 100)}`,
+        pageList ? `Existing pages:\n${pageList}` : '',
+        `Regenerate page ${Number(pageIndex) + 1}.`,
+      ].filter(Boolean).join('\n');
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ];
+      const text = await chatCompletion(messages);
+      let parsed;
+      try {
+        const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+        parsed = JSON.parse(cleaned);
+      } catch {
+        parsed = { title: `Page ${Number(pageIndex) + 1}`, scene: text, prompt: text };
+      }
+      return json(200, { page: parsed }, origin);
     }
 
     return json(404, { error: 'Not found' }, origin);

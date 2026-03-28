@@ -24,7 +24,7 @@ export const generateIdeas = async (event, connectionId) => {
   const { theme = '', audience = 'kids', length = 8 } = body.data || body;
 
   // Validate and clamp inputs
-  const sceneCount = Math.max(1, Math.min(20, Number(length) || 8));
+  const sceneCount = Math.max(1, Math.min(50, Number(length) || 20));
   const safeTheme = String(theme).slice(0, 500);
   const safeAudience = String(audience).slice(0, 100);
 
