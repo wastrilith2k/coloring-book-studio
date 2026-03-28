@@ -66,7 +66,11 @@ export class ColoringBookStudioStack extends cdk.Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      // No CORS needed — images served via presigned URLs from Lambda, not direct browser access
+      cors: [{
+        allowedOrigins,
+        allowedMethods: [s3.HttpMethods.GET],
+        allowedHeaders: ['*'],
+      }],
     });
 
     const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {

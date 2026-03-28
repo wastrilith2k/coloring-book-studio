@@ -146,7 +146,7 @@ export const handleBooks = async (ctx) => {
       return json(400, { error: 'Not all pages have approved images' }, origin);
     }
 
-    // Fetch images from S3 and return as base64 to avoid CORS issues
+    // Return presigned URLs for client-side zip assembly
     const fileEntries = [];
     if (book.cover_url) {
       fileEntries.push({ name: '00-cover.png', key: book.cover_url });
@@ -160,12 +160,10 @@ export const handleBooks = async (ctx) => {
     }
 
     const files = await Promise.all(fileEntries.map(async (entry) => {
-      if (entry.key.startsWith('users/')) {
-        const buffer = await getObjectBuffer(entry.key);
-        return { name: entry.name, data: buffer.toString('base64') };
-      }
-      // External URL fallback — return presigned URL for client to fetch
-      return { name: entry.name, url: entry.key };
+      const url = entry.key.startsWith('users/')
+        ? await getPresignedUrl(entry.key)
+        : entry.key;
+      return { name: entry.name, url };
     }));
 
     return json(200, { files, title: book.title }, origin);
