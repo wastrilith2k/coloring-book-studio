@@ -343,29 +343,65 @@ export default function BookViewer({
 
   const downloadImage = (url, name) => { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); };
 
+  const fetchBundleFiles = async () => {
+    const res = await apiFetch(`/api/books/${bookId}/download`);
+    if (!res.ok) { let m = 'Download failed'; try { m = (await res.json())?.error || m; } catch { m = (await res.text()) || m; } throw new Error(m); }
+    const data = await res.json();
+    const imageBuffers = await Promise.all((data.files || []).map(async file => {
+      const buf = file.url
+        ? await (await fetch(file.url)).arrayBuffer()
+        : (() => { const bin = atob(file.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; })();
+      return { name: file.name, buf };
+    }));
+    return { files: imageBuffers, title: data.title };
+  };
+
   const downloadApprovedBundle = async () => {
     if (!canDownloadBundle) return;
     setBundleError('');
     setBundleLoading(true);
     try {
-      const res = await apiFetch(`/api/books/${bookId}/download`);
-      if (!res.ok) { let m = 'Download failed'; try { m = (await res.json())?.error || m; } catch { m = (await res.text()) || m; } throw new Error(m); }
-      const data = await res.json();
+      const { files, title } = await fetchBundleFiles();
+      const slug = (title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+
+      // Build ZIP
       const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
-      await Promise.all((data.files || []).map(async file => {
-        if (file.data) {
-          const bin = atob(file.data);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          zip.file(file.name, bytes);
-        } else if (file.url) {
-          zip.file(file.name, await (await fetch(file.url)).blob());
-        }
-      }));
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const slug = (data.title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
-      downloadImage(URL.createObjectURL(blob), `${slug}-approved-images.zip`);
+      files.forEach(f => zip.file(f.name, f.buf));
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadImage(URL.createObjectURL(zipBlob), `${slug}-images.zip`);
+
+      // Build PDF (8.5x11" at 72 points/inch = 612x792 points)
+      const { PDFDocument } = await import('pdf-lib');
+      const pdf = PDFDocument.create ? await PDFDocument.create() : new PDFDocument();
+      for (const f of files) {
+        const img = f.name.endsWith('.jpg') || f.name.endsWith('.jpeg')
+          ? await pdf.embedJpg(f.buf)
+          : await pdf.embedPng(f.buf);
+        const page = pdf.addPage([612, 792]);
+        const { width: imgW, height: imgH } = img.scale(1);
+        // Scale to fit page with margins (0.25" = 18pt bleed-safe)
+        const maxW = 612 - 36;
+        const maxH = 792 - 36;
+        const scale = Math.min(maxW / imgW, maxH / imgH);
+        const drawW = imgW * scale;
+        const drawH = imgH * scale;
+        page.drawImage(img, {
+          x: (612 - drawW) / 2,
+          y: (792 - drawH) / 2,
+          width: drawW,
+          height: drawH,
+        });
+      }
+      const pdfBytes = await pdf.save();
+      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+      downloadImage(URL.createObjectURL(pdfBlob), `${slug}-print.pdf`);
+
+      // Cleanup non-approved attempts
+      try {
+        await apiFetch(`/api/books/${bookId}/cleanup`, { method: 'POST' });
+      } catch { /* best effort */ }
+
     } catch (err) { setBundleError(err.message); }
     finally { setBundleLoading(false); setBundleConfirm(false); }
   };

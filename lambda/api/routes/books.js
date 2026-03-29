@@ -13,8 +13,11 @@ import {
   deleteCoverAttempt,
   updateBookCoverUrl,
   nextCoverAttemptNumber,
+  listUnapprovedImageAttempts,
+  listUnapprovedCoverAttempts,
+  deleteUnapprovedAttempts,
 } from '../../lib/db.js';
-import { uploadToS3, getPresignedUrl, getObjectBuffer, objectExists, buildCoverKey } from '../../lib/s3.js';
+import { uploadToS3, getPresignedUrl, getObjectBuffer, objectExists, deleteFromS3, buildCoverKey } from '../../lib/s3.js';
 import { printKey, upscaleForPrint } from '../../lib/image.js';
 import { json, noContent } from '../../lib/cors.js';
 
@@ -175,6 +178,28 @@ export const handleBooks = async (ctx) => {
     }));
 
     return json(200, { files, title: book.title }, origin);
+  }
+
+  // --- POST /api/books/:id/cleanup — delete non-approved attempts ---
+  if (bookId && rest === 'cleanup' && method === 'POST') {
+    if (!(await verifyBookOwnership(bookId, userId))) {
+      return json(404, { error: 'book not found' }, origin);
+    }
+    // Collect S3 keys before deleting DB records
+    const unapprovedImages = await listUnapprovedImageAttempts(bookId);
+    const unapprovedCovers = await listUnapprovedCoverAttempts(bookId);
+    const keysToDelete = [
+      ...unapprovedImages.map(a => a.url),
+      ...unapprovedCovers.map(a => a.url),
+    ].filter(k => k && k.startsWith('users/'));
+
+    // Delete DB records
+    await deleteUnapprovedAttempts(bookId);
+
+    // Delete S3 objects (best effort)
+    await Promise.allSettled(keysToDelete.map(key => deleteFromS3(key)));
+
+    return json(200, { deleted: keysToDelete.length }, origin);
   }
 
   // --- PUT /api/books/:id ---

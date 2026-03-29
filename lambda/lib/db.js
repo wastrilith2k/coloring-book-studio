@@ -278,6 +278,42 @@ export const deleteCoverAttempt = async (id) => {
   await db.execute({ sql: 'DELETE FROM cover_attempts WHERE id = ?', args: [id] });
 };
 
+// ---------- Cleanup (non-approved attempts) ----------
+
+export const listUnapprovedImageAttempts = async (bookId) => {
+  const db = getDb();
+  const { rows } = await db.execute({
+    sql: `SELECT ia.* FROM image_attempts ia
+      JOIN pages p ON ia.page_id = p.id
+      WHERE p.book_id = ? AND ia.approved = 0`,
+    args: [bookId],
+  });
+  return rows;
+};
+
+export const listUnapprovedCoverAttempts = async (bookId) => {
+  const db = getDb();
+  const { rows } = await db.execute({
+    sql: 'SELECT * FROM cover_attempts WHERE book_id = ? AND approved = 0',
+    args: [bookId],
+  });
+  return rows;
+};
+
+export const deleteUnapprovedAttempts = async (bookId) => {
+  const db = getDb();
+  await db.execute({
+    sql: `DELETE FROM image_attempts WHERE approved = 0 AND page_id IN (
+      SELECT id FROM pages WHERE book_id = ?
+    )`,
+    args: [bookId],
+  });
+  await db.execute({
+    sql: 'DELETE FROM cover_attempts WHERE book_id = ? AND approved = 0',
+    args: [bookId],
+  });
+};
+
 // ---------- Pages ----------
 
 export const getPage = async (id) => {
