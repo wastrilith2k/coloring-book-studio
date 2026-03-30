@@ -484,7 +484,7 @@ export default function BookViewer({
     if (!canDownloadBundle) return;
     setBundleError('');
     setBundleLoading(true);
-    setBundleLoadingLabel(mode === 'kdp' ? 'Building KDP interior...' : mode === 'cover' ? 'Building cover...' : 'Packing images...');
+    setBundleLoadingLabel(mode === 'kdp' ? 'Building KDP interior...' : mode === 'cover' ? 'Building cover...' : mode === 'full-pdf' ? 'Building complete book...' : 'Packing images...');
     try {
       const { files, title } = await fetchBundleFiles();
       const slug = (title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
@@ -503,6 +503,13 @@ export default function BookViewer({
         const pdfBytes = await buildPdf([coverFile]);
         const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
         downloadImage(URL.createObjectURL(pdfBlob), `${slug}-kdp-cover.pdf`);
+      } else if (mode === 'full-pdf') {
+        // Complete book: cover + all pages in one PDF
+        const allFiles = coverFile ? [coverFile, ...interiorFiles] : interiorFiles;
+        if (!allFiles.length) throw new Error('No pages found');
+        const pdfBytes = await buildPdf(allFiles, { bleedPages: options.bleedPages });
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        downloadImage(URL.createObjectURL(pdfBlob), `${slug}-complete.pdf`);
       } else {
         // ZIP of all images
         const { default: JSZip } = await import('jszip');

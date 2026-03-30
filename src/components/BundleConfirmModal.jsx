@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Image, BookOpen } from 'lucide-react';
+import { Download, FileText, Image, BookOpen } from 'lucide-react';
 
 export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, onCancel }) {
   const [bleedPages, setBleedPages] = useState(true);
@@ -7,10 +7,7 @@ export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, o
   return (
     <div className="bundle-confirm-overlay">
       <div className="bundle-confirm-card">
-        <h3>Download for KDP</h3>
-        <p>
-          Choose a download format for your coloring book. KDP requires the interior and cover as separate files.
-        </p>
+        <h3>Download</h3>
 
         <label className="bundle-toggle">
           <input
@@ -25,6 +22,7 @@ export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, o
         </label>
 
         <div className="bundle-confirm-options">
+          <p className="bundle-section-label">For print (KDP)</p>
           <button
             className="bundle-option"
             onClick={() => onConfirm('kdp', { bleedPages })}
@@ -46,6 +44,19 @@ export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, o
             <div>
               <strong>KDP Cover PDF</strong>
               <span>Front cover as a separate PDF for KDP cover upload</span>
+            </div>
+          </button>
+
+          <p className="bundle-section-label">For digital</p>
+          <button
+            className="bundle-option"
+            onClick={() => onConfirm('full-pdf', { bleedPages })}
+            disabled={loading}
+          >
+            <Download size={20} />
+            <div>
+              <strong>Complete Book PDF</strong>
+              <span>Cover + all pages in a single PDF — for digital sales or sharing</span>
             </div>
           </button>
 
