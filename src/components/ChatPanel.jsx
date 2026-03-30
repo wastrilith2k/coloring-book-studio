@@ -32,15 +32,39 @@ export default function ChatPanel({ onSaved, bookContext }) {
   const initialMessages = useMemo(() => loadInitialMessages(), []);
 
   const systemContext = useMemo(() => {
-    if (!bookContext) return null;
+    const appInfo = `You are the AI assistant for Coloring Book Studio, a platform for creating coloring books for Amazon KDP (Kindle Direct Publishing).
+
+APP CAPABILITIES:
+- Book creation wizard: pick a theme (Enchanted Forest, Space Adventure, Ocean World, Dinosaur Land, Fairy Tales, Farm Life, or custom), target audience (Toddlers 2-4, Kids 5-8, Tweens 9-12, Adults), and page count (5-50)
+- AI image generation with multiple models: GPT Image Mini (cheap ~$0.005), GPT Image 1 (better ~$0.015), Gemini Flash (~$0.07), Gemini 3.1 Flash (~$0.07)
+- All generated images are black-and-white coloring pages with thick clean outlines, no shading, no filled colors, pure white background
+- Approved images are automatically upscaled to 300 DPI (2550x3300px, 8.5x11") using Lanczos3 resampling
+- KDP export: Interior PDF (pages only, no cover), Cover PDF (separate), or Images ZIP
+- Each page has: title, character style guide, scene/prompt, caption, and notes
+- Multiple image attempts per page — generate variations and approve your favorite
+
+PROMPT TIPS FOR COLORING PAGES:
+- Be specific about the scene, characters, and setting
+- Mention "coloring book page" or "coloring page" in the prompt
+- Describe the composition: foreground, background, borders
+- For kids: simpler shapes, larger areas to color, fewer small details
+- For adults: intricate patterns, mandalas, fine details
+- Avoid requesting shading, gradients, or filled colors
+- Mention "thick outlines" and "white background" for best results`;
+
+    if (!bookContext) return appInfo;
     const pageList = (bookContext.pages || [])
       .map((p, i) => `  ${i + 1}. ${p.title}: ${p.scene}`)
       .join('\n');
-    return `You are helping with a coloring book titled "${
-      bookContext.title
-    }".\nConcept: ${
-      bookContext.concept || 'Not specified'
-    }\nPages:\n${pageList}\n\nProvide helpful suggestions for scenes, prompts, or improvements.`;
+    return `${appInfo}
+
+CURRENT BOOK:
+Title: "${bookContext.title}"
+Concept: ${bookContext.concept || 'Not specified'}
+Pages:
+${pageList}
+
+Help the user refine prompts, suggest new scenes, improve page ideas, or answer questions about the coloring book workflow.`;
   }, [bookContext]);
 
   const [messages, setMessages] = useState(initialMessages);
@@ -178,7 +202,12 @@ export default function ChatPanel({ onSaved, bookContext }) {
             systemContext,
           }),
         });
-        const text = await res.text();
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Chat failed (${res.status})`);
+        }
+        const data = await res.json();
+        const text = data.content || '';
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.role === 'assistant' && last._streaming) {

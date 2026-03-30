@@ -26,6 +26,8 @@ export const ensureSchema = async () => {
     "ALTER TABLE pages ADD COLUMN caption TEXT DEFAULT ''",
     "ALTER TABLE pages ADD COLUMN notes TEXT DEFAULT ''",
     "ALTER TABLE books ADD COLUMN notes TEXT DEFAULT ''",
+    "ALTER TABLE generation_log ADD COLUMN user_email TEXT DEFAULT ''",
+    "ALTER TABLE pages ADD COLUMN character_desc TEXT DEFAULT ''",
   ];
   for (const sql of migrations) {
     try { await db.execute(sql); } catch { /* column already exists */ }
@@ -86,6 +88,27 @@ CREATE TABLE IF NOT EXISTS cover_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cover_attempts_book_id ON cover_attempts(book_id);
+
+CREATE TABLE IF NOT EXISTS settings (
+  user_id TEXT PRIMARY KEY,
+  value TEXT DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS admin_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS generation_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  user_email TEXT DEFAULT '',
+  model_id TEXT NOT NULL,
+  cost_cents REAL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_generation_log_user ON generation_log(user_id);
 `;
 
 // ---------- Books ----------
@@ -135,7 +158,7 @@ export const insertPages = async (bookId, pages = []) => {
   for (let idx = 0; idx < pages.length; idx++) {
     const page = pages[idx];
     const { lastInsertRowid } = await db.execute({
-      sql: 'INSERT INTO pages (book_id, title, scene, prompt, character_style, image_url, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      sql: 'INSERT INTO pages (book_id, title, scene, prompt, character_style, image_url, sort_order, caption) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       args: [
         bookId,
         page.title ?? '',
@@ -144,6 +167,7 @@ export const insertPages = async (bookId, pages = []) => {
         page.characterStyle ?? page.character_style ?? '',
         page.imageUrl ?? '',
         page.sort_order ?? page.sortOrder ?? idx,
+        page.caption ?? '',
       ],
     });
     ids.push(lastInsertRowid);
@@ -325,7 +349,7 @@ export const getPage = async (id) => {
   return rows[0] || null;
 };
 
-export const updatePage = async (id, { title, scene, prompt, characterStyle, imageUrl, sortOrder, caption, notes }) => {
+export const updatePage = async (id, { title, scene, prompt, characterStyle, characterDesc, imageUrl, sortOrder, caption, notes }) => {
   const db = getDb();
   await db.execute({
     sql: `UPDATE pages SET
@@ -333,12 +357,13 @@ export const updatePage = async (id, { title, scene, prompt, characterStyle, ima
       scene = COALESCE(?, scene),
       prompt = COALESCE(?, prompt),
       character_style = COALESCE(?, character_style),
+      character_desc = COALESCE(?, character_desc),
       image_url = COALESCE(?, image_url),
       sort_order = COALESCE(?, sort_order),
       caption = COALESCE(?, caption),
       notes = COALESCE(?, notes)
     WHERE id = ?`,
-    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, id],
+    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, characterDesc ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, id],
   });
   const { rows } = await db.execute({
     sql: 'SELECT * FROM pages WHERE id = ?',
@@ -381,6 +406,120 @@ export const deleteBook = async (id) => {
 export const deletePage = async (id) => {
   const db = getDb();
   await db.execute({ sql: 'DELETE FROM pages WHERE id = ?', args: [id] });
+};
+
+// ---------- Ownership check ----------
+
+// ---------- Admin Settings (global, not per-user) ----------
+
+export const getAdminSetting = async (key) => {
+  const db = getDb();
+  const { rows } = await db.execute({
+    sql: 'SELECT value FROM admin_settings WHERE key = ?',
+    args: [key],
+  });
+  if (!rows[0]) return null;
+  try { return JSON.parse(rows[0].value); } catch { return rows[0].value; }
+};
+
+export const setAdminSetting = async (key, value) => {
+  const db = getDb();
+  const json = JSON.stringify(value);
+  await db.execute({
+    sql: `INSERT INTO admin_settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    args: [key, json],
+  });
+};
+
+// ---------- Admin role (first user becomes admin) ----------
+
+export const isAdmin = async (userId) => {
+  const adminUserId = await getAdminSetting('admin_user_id');
+  return adminUserId === userId;
+};
+
+export const ensureAdmin = async (userId) => {
+  const existing = await getAdminSetting('admin_user_id');
+  if (!existing) {
+    await setAdminSetting('admin_user_id', userId);
+    return true; // this user just became admin
+  }
+  return existing === userId;
+};
+
+// ---------- Generation Log ----------
+
+export const logGeneration = async (userId, modelId, costCents, userEmail = '') => {
+  const db = getDb();
+  await db.execute({
+    sql: 'INSERT INTO generation_log (user_id, user_email, model_id, cost_cents) VALUES (?, ?, ?, ?)',
+    args: [userId, userEmail, modelId, costCents],
+  });
+};
+
+export const getGenerationStats = async () => {
+  const db = getDb();
+  const { rows: totals } = await db.execute({
+    sql: `SELECT model_id, COUNT(*) as count, SUM(cost_cents) as total_cents
+      FROM generation_log GROUP BY model_id ORDER BY total_cents DESC`,
+    args: [],
+  });
+  const { rows: overall } = await db.execute({
+    sql: `SELECT COUNT(*) as count, SUM(cost_cents) as total_cents FROM generation_log`,
+    args: [],
+  });
+  const { rows: byUser } = await db.execute({
+    sql: `SELECT user_id,
+      COALESCE(MAX(user_email), '') as email,
+      COUNT(*) as count, SUM(cost_cents) as total_cents,
+      MIN(created_at) as first_gen, MAX(created_at) as last_gen
+      FROM generation_log GROUP BY user_id ORDER BY total_cents DESC`,
+    args: [],
+  });
+  // Daily totals for the last 30 days
+  const { rows: daily } = await db.execute({
+    sql: `SELECT date(created_at) as day, COUNT(*) as count, SUM(cost_cents) as total_cents
+      FROM generation_log
+      WHERE created_at >= datetime('now', '-30 days')
+      GROUP BY date(created_at)
+      ORDER BY day ASC`,
+    args: [],
+  });
+  // Per-user daily for the last 30 days
+  const { rows: userDaily } = await db.execute({
+    sql: `SELECT user_id, date(created_at) as day, model_id,
+      COUNT(*) as count, SUM(cost_cents) as total_cents
+      FROM generation_log
+      WHERE created_at >= datetime('now', '-30 days')
+      GROUP BY user_id, date(created_at), model_id
+      ORDER BY day ASC`,
+    args: [],
+  });
+  return { byModel: totals, overall: overall[0], byUser, daily, userDaily };
+};
+
+// ---------- Settings (per-user, kept for future use) ----------
+
+export const getSettings = async (userId) => {
+  const db = getDb();
+  const { rows } = await db.execute({
+    sql: 'SELECT * FROM settings WHERE user_id = ?',
+    args: [userId],
+  });
+  if (!rows[0]) return null;
+  try { return { ...rows[0], value: JSON.parse(rows[0].value) }; } catch { return rows[0]; }
+};
+
+export const upsertSettings = async (userId, value) => {
+  const db = getDb();
+  const json = JSON.stringify(value);
+  await db.execute({
+    sql: `INSERT INTO settings (user_id, value) VALUES (?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET value = excluded.value`,
+    args: [userId, json],
+  });
+  return getSettings(userId);
 };
 
 // ---------- Ownership check ----------

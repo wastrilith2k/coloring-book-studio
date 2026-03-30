@@ -18,9 +18,11 @@ import {
   X,
   RefreshCw,
   Trash2,
+  Settings,
 } from 'lucide-react';
 import BookViewer from './components/BookViewer.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
+import AdminPanel from './components/AdminPanel.jsx';
 import { apiFetch } from './lib/api.js';
 import './App.css';
 
@@ -461,7 +463,7 @@ function Wizard({ onBookCreated }) {
 
 /* ---------- Top Bar ---------- */
 
-function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, onDeleteBook, theme, toggleTheme, chatOpen, toggleChat }) {
+function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, onDeleteBook, theme, toggleTheme, chatOpen, toggleChat, isAdmin, onOpenAdmin }) {
   const [showLibrary, setShowLibrary] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const activeBook = books.find(b => `${b.id}` === `${activeId}`) ?? null;
@@ -546,6 +548,17 @@ function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, onDele
           <span className="topbar-btn__label">Chat</span>
         </button>
 
+        {isAdmin && (
+          <button
+            className="btn topbar-btn"
+            onClick={onOpenAdmin}
+            title="Admin panel"
+          >
+            <Settings size={16} />
+            <span className="topbar-btn__label">Admin</span>
+          </button>
+        )}
+
         <button
           className="theme-toggle"
           onClick={toggleTheme}
@@ -576,6 +589,8 @@ export default function App({ signOut, user }) {
   const [error, setError] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   // Theme: light as default (kids' coloring book tool)
   const [theme, setTheme] = useState(() => {
@@ -601,6 +616,7 @@ export default function App({ signOut, user }) {
         notes: p.notes || '',
         characterStyle:
           p.character_style || p.characterStyle || bookData?.concept || '',
+        characterDesc: p.character_desc || p.characterDesc || '',
         includeCharacterGuide: true,
       })),
     [bookData]
@@ -641,6 +657,16 @@ export default function App({ signOut, user }) {
 
   useEffect(() => {
     fetchBooks();
+    // Check admin status
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          setUserIsAdmin(!!data.isAdmin);
+        }
+      } catch { /* ignore */ }
+    })();
   }, []);
 
   useEffect(() => {
@@ -703,7 +729,11 @@ export default function App({ signOut, user }) {
         toggleTheme={toggleTheme}
         chatOpen={chatOpen}
         toggleChat={() => setChatOpen(o => !o)}
+        isAdmin={userIsAdmin}
+        onOpenAdmin={() => setShowAdmin(true)}
       />
+
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
       {shouldShowWizard && (
         <Wizard onBookCreated={handleBookCreated} />

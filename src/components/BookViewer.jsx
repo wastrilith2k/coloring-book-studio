@@ -6,7 +6,7 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-const STYLE_HINT = 'Black and white UNCOLORED coloring book page. Thick clean outlines only, no shading, no filled colors, no gradients. Pure white background. Leave all areas blank for a child to color in.';
+const STYLE_HINT = 'Black and white UNCOLORED coloring book page. Thick clean outlines only, no shading, no filled colors, no gradients. Pure white background. Leave all areas blank for a child to color in. Do NOT include any text, titles, labels, captions, or words in the image.';
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -60,6 +60,7 @@ export default function BookViewer({
   const [styleError, setStyleError] = useState('');
   const [promptError, setPromptError] = useState('');
   const [pageStyles, setPageStyles] = useState({});
+  const [pageCharacters, setPageCharacters] = useState({});
   const [pagePrompts, setPagePrompts] = useState({});
   const [pageCaptions, setPageCaptions] = useState({});
   const [pageNotes, setPageNotes] = useState({});
@@ -72,18 +73,43 @@ export default function BookViewer({
   const [carouselIdx, setCarouselIdx] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState(null);
+  const [imageModelId, setImageModelId] = useState('gpt-image-1-mini');
+  const [enabledModels, setEnabledModels] = useState([]);
+  const [defaultCoverModel, setDefaultCoverModel] = useState('');
+  const [defaultPageModel, setDefaultPageModel] = useState('');
+
+  // --- Load settings (models) ---
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          const models = data.enabledModels || [];
+          setEnabledModels(models);
+          setDefaultCoverModel(data.defaultCoverModel || '');
+          setDefaultPageModel(data.defaultPageModel || '');
+          if (models.length && !models.find(m => m.id === imageModelId)) {
+            setImageModelId(models[0].id);
+          }
+        }
+      } catch { /* use defaults */ }
+    })();
+  }, []);
 
   // --- Init on book change ---
   useEffect(() => {
-    const s = {}, pr = {}, c = {}, n = {}, t = {};
+    const s = {}, ch = {}, pr = {}, c = {}, n = {}, t = {};
     pages.forEach(p => {
       s[p.id] = p.characterStyle ?? characterGuide ?? '';
+      ch[p.id] = p.characterDesc ?? '';
       pr[p.id] = p.prompt || p.scene || '';
       c[p.id] = p.caption || '';
       n[p.id] = p.notes || '';
       t[p.id] = p.title || '';
     });
     setPageStyles(s);
+    setPageCharacters(ch);
     setPagePrompts(pr);
     setPageCaptions(c);
     setPageNotes(n);
@@ -106,15 +132,28 @@ export default function BookViewer({
   const isCover = Boolean(activePage?.isCover);
   const buildPrompt = page => {
     if (!page) return '';
-    const parts = [];
+    const title = pageTitles[page.id] ?? page.title ?? '';
     const styleText = pageStyles[page.id] ?? '';
+    const characterText = pageCharacters[page.id] ?? '';
     const scenePrompt = pagePrompts[page.id] ?? '';
-    if (styleText && page.includeCharacterGuide !== false) parts.push(styleText);
-    if (scenePrompt) parts.push(scenePrompt);
-    parts.push(STYLE_HINT);
-    return parts.join(' ');
+    const caption = pageCaptions[page.id] ?? '';
+    const sections = [];
+    sections.push(`<style>\n${STYLE_HINT}\n</style>`);
+    if (characterGuide) sections.push(`<theme>\n${characterGuide}\n</theme>`);
+    if (title) sections.push(`<subject>\n${title}\n</subject>`);
+    if (styleText) sections.push(`<book-style>\n${styleText}\n</book-style>`);
+    if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
+    if (scenePrompt) sections.push(`<scene>\n${scenePrompt}\n</scene>`);
+    if (caption) sections.push(`<context>\n${caption}\n</context>`);
+    return sections.join('\n');
   };
   const prompt = isCover ? coverPrompt : buildPrompt(activePage);
+  const effectiveModelId = (() => {
+    const adminDefault = isCover ? defaultCoverModel : defaultPageModel;
+    if (adminDefault && enabledModels.find(m => m.id === adminDefault)) return adminDefault;
+    if (enabledModels.find(m => m.id === imageModelId)) return imageModelId;
+    return enabledModels[0]?.id || imageModelId;
+  })();
   const hasStoryPages = pages.length > 0;
 
   const updatePageState = (pageId, updater) => {
@@ -189,6 +228,8 @@ export default function BookViewer({
 
   const handleStyleChange = e => { setStyleError(''); if (activePage && !isCover) setPageStyles(p => ({ ...p, [activePage.id]: e.target.value })); };
   const handleStyleBlur = () => { if (activePage && !isCover) saveField('style', pageStyles[activePage.id] ?? '', { characterStyle: pageStyles[activePage.id] ?? '' }); };
+  const handleCharacterChange = e => { if (activePage && !isCover) setPageCharacters(p => ({ ...p, [activePage.id]: e.target.value })); };
+  const handleCharacterBlur = () => { if (activePage && !isCover) saveField('characterDesc', pageCharacters[activePage.id] ?? ''); };
   const handlePromptChange = e => { setPromptError(''); if (activePage && !isCover) setPagePrompts(p => ({ ...p, [activePage.id]: e.target.value })); };
   const handlePromptBlur = () => { if (activePage && !isCover) { const v = pagePrompts[activePage.id] ?? ''; saveField('prompt', v, { prompt: v, scene: v }); } };
   const handleCaptionChange = e => { if (activePage && !isCover) setPageCaptions(p => ({ ...p, [activePage.id]: e.target.value })); };
@@ -277,7 +318,7 @@ export default function BookViewer({
     setGenError(null);
     const attempt = async (retry = 0) => {
       try {
-        const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt }) });
+        const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, modelId: effectiveModelId }) });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
         const data = await res.json();
         if (!data.dataUrl) throw new Error('No image returned');
@@ -351,59 +392,108 @@ export default function BookViewer({
       const buf = file.url
         ? await (await fetch(file.url)).arrayBuffer()
         : (() => { const bin = atob(file.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; })();
-      return { name: file.name, buf };
+      return { name: file.name, buf, title: file.title || '', caption: file.caption || '' };
     }));
     return { files: imageBuffers, title: data.title };
   };
 
-  const downloadApprovedBundle = async () => {
+  const [bundleLoadingLabel, setBundleLoadingLabel] = useState('');
+
+  const buildPdf = async (imageFiles) => {
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+    // KDP 8.5x11" = 612x792 points (72pt/inch)
+    const W = 612, H = 792;
+    const MARGIN = 36; // 0.5" margins
+    const TITLE_SIZE = 16;
+    const CAPTION_SIZE = 11;
+    const TEXT_GAP = 8;
+    const pdf = PDFDocument.create ? await PDFDocument.create() : new PDFDocument();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+    for (const f of imageFiles) {
+      const img = f.name.endsWith('.jpg') || f.name.endsWith('.jpeg')
+        ? await pdf.embedJpg(f.buf)
+        : await pdf.embedPng(f.buf);
+      const page = pdf.addPage([W, H]);
+      const { width: imgW, height: imgH } = img.scale(1);
+
+      const hasTitle = f.title && !f.name.startsWith('00-cover');
+      const hasCaption = f.caption && !f.name.startsWith('00-cover');
+      const titleH = hasTitle ? TITLE_SIZE + TEXT_GAP : 0;
+      const captionH = hasCaption ? CAPTION_SIZE + TEXT_GAP : 0;
+
+      // Available area for the image
+      const availW = W - MARGIN * 2;
+      const availH = H - MARGIN * 2 - titleH - captionH;
+      const scale = Math.min(availW / imgW, availH / imgH);
+      const drawW = imgW * scale;
+      const drawH = imgH * scale;
+
+      const imgX = (W - drawW) / 2;
+      const imgY = MARGIN + captionH + (availH - drawH) / 2;
+
+      page.drawImage(img, { x: imgX, y: imgY, width: drawW, height: drawH });
+
+      if (hasTitle) {
+        const titleW = fontBold.widthOfTextAtSize(f.title, TITLE_SIZE);
+        page.drawText(f.title, {
+          x: (W - titleW) / 2,
+          y: imgY + drawH + TEXT_GAP,
+          size: TITLE_SIZE,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+      }
+
+      if (hasCaption) {
+        const capW = font.widthOfTextAtSize(f.caption, CAPTION_SIZE);
+        page.drawText(f.caption, {
+          x: (W - capW) / 2,
+          y: MARGIN,
+          size: CAPTION_SIZE,
+          font,
+          color: rgb(0.3, 0.3, 0.3),
+        });
+      }
+    }
+    return pdf.save();
+  };
+
+  const downloadApprovedBundle = async (mode = 'kdp') => {
     if (!canDownloadBundle) return;
     setBundleError('');
     setBundleLoading(true);
+    setBundleLoadingLabel(mode === 'kdp' ? 'Building KDP interior...' : mode === 'cover' ? 'Building cover...' : 'Packing images...');
     try {
       const { files, title } = await fetchBundleFiles();
       const slug = (title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+      const coverFile = files.find(f => f.name.startsWith('00-cover'));
+      const interiorFiles = files.filter(f => !f.name.startsWith('00-cover'));
 
-      // Build ZIP
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      files.forEach(f => zip.file(f.name, f.buf));
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      downloadImage(URL.createObjectURL(zipBlob), `${slug}-images.zip`);
-
-      // Build PDF (8.5x11" at 72 points/inch = 612x792 points)
-      const { PDFDocument } = await import('pdf-lib');
-      const pdf = PDFDocument.create ? await PDFDocument.create() : new PDFDocument();
-      for (const f of files) {
-        const img = f.name.endsWith('.jpg') || f.name.endsWith('.jpeg')
-          ? await pdf.embedJpg(f.buf)
-          : await pdf.embedPng(f.buf);
-        const page = pdf.addPage([612, 792]);
-        const { width: imgW, height: imgH } = img.scale(1);
-        // Scale to fit page with margins (0.25" = 18pt bleed-safe)
-        const maxW = 612 - 36;
-        const maxH = 792 - 36;
-        const scale = Math.min(maxW / imgW, maxH / imgH);
-        const drawW = imgW * scale;
-        const drawH = imgH * scale;
-        page.drawImage(img, {
-          x: (612 - drawW) / 2,
-          y: (792 - drawH) / 2,
-          width: drawW,
-          height: drawH,
-        });
+      if (mode === 'kdp') {
+        // KDP Interior: pages only, no cover
+        if (!interiorFiles.length) throw new Error('No interior pages found');
+        const pdfBytes = await buildPdf(interiorFiles);
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        downloadImage(URL.createObjectURL(pdfBlob), `${slug}-kdp-interior.pdf`);
+      } else if (mode === 'cover') {
+        // KDP Cover: single-page PDF with just the cover
+        if (!coverFile) throw new Error('No cover image found');
+        const pdfBytes = await buildPdf([coverFile]);
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        downloadImage(URL.createObjectURL(pdfBlob), `${slug}-kdp-cover.pdf`);
+      } else {
+        // ZIP of all images
+        const { default: JSZip } = await import('jszip');
+        const zip = new JSZip();
+        files.forEach(f => zip.file(f.name, f.buf));
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        downloadImage(URL.createObjectURL(zipBlob), `${slug}-images.zip`);
       }
-      const pdfBytes = await pdf.save();
-      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      downloadImage(URL.createObjectURL(pdfBlob), `${slug}-print.pdf`);
-
-      // Cleanup non-approved attempts
-      try {
-        await apiFetch(`/api/books/${bookId}/cleanup`, { method: 'POST' });
-      } catch { /* best effort */ }
 
     } catch (err) { setBundleError(err.message); }
-    finally { setBundleLoading(false); setBundleConfirm(false); }
+    finally { setBundleLoading(false); setBundleLoadingLabel(''); setBundleConfirm(false); }
   };
 
   // --- Render ---
@@ -436,7 +526,7 @@ export default function BookViewer({
               <div className="book-viewer__actions">
                 <button className="btn ghost" disabled>{approvedCount}/{pages.length + 1} selected</button>
                 <button className="btn primary" onClick={() => canDownloadBundle && setBundleConfirm(true)} disabled={!canDownloadBundle || bundleLoading}>
-                  {bundleLoading ? 'Preparing...' : 'Download bundle'}
+                  {bundleLoading ? 'Preparing...' : 'Download for KDP'}
                 </button>
               </div>
             </div>
@@ -477,6 +567,10 @@ export default function BookViewer({
             onStyleBlur={handleStyleBlur}
             styleSaving={currentState.styleSaving}
             styleError={styleError}
+            currentCharacter={activePage && !isCover ? pageCharacters[activePage.id] ?? '' : ''}
+            onCharacterChange={handleCharacterChange}
+            onCharacterBlur={handleCharacterBlur}
+            characterSaving={currentState.characterDescSaving}
             currentPrompt={activePage && !isCover ? pagePrompts[activePage.id] ?? '' : ''}
             onPromptChange={handlePromptChange}
             onPromptBlur={handlePromptBlur}
@@ -513,6 +607,9 @@ export default function BookViewer({
               onDelete={deleteAttempt}
               onDownload={downloadImage}
               activePage={activePage}
+              modelId={effectiveModelId}
+              onModelChange={setImageModelId}
+              enabledModels={enabledModels}
             />
           </div>
         </div>
@@ -525,6 +622,7 @@ export default function BookViewer({
       {bundleConfirm && (
         <BundleConfirmModal
           loading={bundleLoading}
+          loadingLabel={bundleLoadingLabel}
           onConfirm={downloadApprovedBundle}
           onCancel={() => setBundleConfirm(false)}
         />

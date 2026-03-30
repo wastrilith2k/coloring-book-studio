@@ -23,6 +23,9 @@ export default function ImageCarousel({
   onDelete,
   onDownload,
   activePage,
+  modelId,
+  onModelChange,
+  enabledModels = [],
 }) {
   const displayAttempts = useMemo(() => [...attempts].reverse(), [attempts]);
 
@@ -72,6 +75,17 @@ export default function ImageCarousel({
                     <Wand2 size={20} />
                     Generate page
                   </button>
+                  {enabledModels.length > 1 && (
+                    <select
+                      className="carousel__model-select"
+                      value={modelId}
+                      onChange={e => onModelChange(e.target.value)}
+                    >
+                      {enabledModels.map(m => (
+                        <option key={m.id} value={m.id}>{m.label} — {m.desc}</option>
+                      ))}
+                    </select>
+                  )}
                   <p className="carousel__gen-hint">
                     {displayAttempts.length
                       ? `${displayAttempts.length} image${displayAttempts.length === 1 ? '' : 's'} generated`

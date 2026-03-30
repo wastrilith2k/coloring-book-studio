@@ -1,4 +1,5 @@
-import { AlertCircle, Sparkles, StickyNote } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, ChevronDown, ChevronRight, Sparkles, StickyNote } from 'lucide-react';
 import PromptTip, { PROMPT_TIPS } from './PromptTip.jsx';
 import PromptGuide from './PromptGuide.jsx';
 
@@ -15,6 +16,11 @@ export default function PromptPanel({
   onStyleBlur,
   styleSaving,
   styleError,
+  // Character
+  currentCharacter,
+  onCharacterChange,
+  onCharacterBlur,
+  characterSaving,
   // Scene
   currentPrompt,
   onPromptChange,
@@ -42,6 +48,8 @@ export default function PromptPanel({
   imageError,
   genError,
 }) {
+  const [characterOpen, setCharacterOpen] = useState(false);
+
   return (
     <div className="main-layout__prompts">
       <div className="book-viewer__header">
@@ -82,18 +90,44 @@ export default function PromptPanel({
       ) : (
         <div className="prompt-stack">
           <div className="prompt-field">
-            <label htmlFor="character-text">Character / style prompt <PromptTip tips={PROMPT_TIPS.style} /></label>
+            <label htmlFor="style-text">Style prompt <PromptTip tips={PROMPT_TIPS.style} /></label>
             <textarea
-              id="character-text"
+              id="style-text"
               value={currentStyle}
               onChange={onStyleChange}
               onBlur={onStyleBlur}
-              placeholder="Describe the character or style."
+              placeholder="Describe the art style for this page (e.g. whimsical, detailed, cartoon)."
               rows={3}
             />
             {styleSaving && <span className="pill subtle">Saving...</span>}
             {styleError && <div className="book-viewer__alert">{styleError}</div>}
           </div>
+
+          <div className="prompt-field">
+            <button
+              type="button"
+              className="prompt-field__collapse-toggle"
+              onClick={() => setCharacterOpen(o => !o)}
+            >
+              {characterOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Character description</span>
+              {currentCharacter && !characterOpen && <span className="pill subtle">has content</span>}
+            </button>
+            {characterOpen && (
+              <>
+                <textarea
+                  id="character-text"
+                  value={currentCharacter}
+                  onChange={onCharacterChange}
+                  onBlur={onCharacterBlur}
+                  placeholder="Describe recurring characters (appearance, outfit, features). Leave empty if no specific characters."
+                  rows={3}
+                />
+                {characterSaving && <span className="pill subtle">Saving...</span>}
+              </>
+            )}
+          </div>
+
           <div className="prompt-field">
             <label htmlFor="scene-text">Scene prompt <PromptTip tips={PROMPT_TIPS.scene} /></label>
             <textarea

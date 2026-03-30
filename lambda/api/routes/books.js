@@ -167,6 +167,8 @@ export const handleBooks = async (ctx) => {
       fileEntries.push({
         name: `${String(page.sort_order ?? page.id).padStart(2, '0')}-${slug}.png`,
         key: page.image_url,
+        title: page.title || '',
+        caption: page.caption || '',
       });
     }
 
@@ -174,7 +176,7 @@ export const handleBooks = async (ctx) => {
       const url = entry.key.startsWith('users/')
         ? await getPresignedUrl(entry.key)
         : entry.key;
-      return { name: entry.name, url };
+      return { name: entry.name, url, title: entry.title, caption: entry.caption };
     }));
 
     return json(200, { files, title: book.title }, origin);

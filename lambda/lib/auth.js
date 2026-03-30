@@ -15,6 +15,14 @@ export const getUserId = (event) => {
 };
 
 /**
+ * Extract user email from Cognito JWT claims.
+ */
+export const getUserEmail = (event) => {
+  const claims = event.requestContext?.authorizer?.jwt?.claims;
+  return claims?.email || claims?.['cognito:username'] || '';
+};
+
+/**
  * Extract user ID from WebSocket $connect event.
  * JWT is passed as query string parameter since WebSocket doesn't support Authorization header on connect.
  */

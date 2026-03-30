@@ -47,7 +47,7 @@ export const sendMessage = async (event, connectionId) => {
   // Build messages array with system context
   const allMessages = [];
   if (systemContext) {
-    allMessages.push({ role: 'system', content: String(systemContext).slice(0, 5000) });
+    allMessages.push({ role: 'system', content: String(systemContext).slice(0, 8000) });
   }
   allMessages.push(...sanitizedMessages);
 
