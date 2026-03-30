@@ -136,7 +136,8 @@ export const handler = async (event) => {
       const models = ALL_MODELS.filter(m => enabledModels.includes(m.id));
       const defaultCoverModel = (await getAdminSetting('default_cover_model')) || null;
       const defaultPageModel = (await getAdminSetting('default_page_model')) || null;
-      return json(200, { enabledModels: models, allModels: ALL_MODELS, isAdmin: admin, defaultCoverModel, defaultPageModel }, origin);
+      const promptEvaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
+      return json(200, { enabledModels: models, allModels: ALL_MODELS, isAdmin: admin, defaultCoverModel, defaultPageModel, promptEvaluatorEnabled }, origin);
     }
 
     // GET /api/admin/stats — generation cost stats (admin only)
@@ -149,7 +150,7 @@ export const handler = async (event) => {
     // PUT /api/admin/models — update enabled models + defaults (admin only)
     if (path === '/api/admin/models' && method === 'PUT') {
       if (!(await isAdmin(userId))) return json(403, { error: 'Admin only' }, origin);
-      const { enabledModels, defaultCoverModel, defaultPageModel } = body;
+      const { enabledModels, defaultCoverModel, defaultPageModel, promptEvaluatorEnabled } = body;
       if (enabledModels !== undefined) {
         if (!Array.isArray(enabledModels)) return json(400, { error: 'enabledModels must be an array' }, origin);
         const validIds = ALL_MODELS.map(m => m.id);
@@ -159,11 +160,13 @@ export const handler = async (event) => {
       }
       if (defaultCoverModel !== undefined) await setAdminSetting('default_cover_model', defaultCoverModel);
       if (defaultPageModel !== undefined) await setAdminSetting('default_page_model', defaultPageModel);
+      if (promptEvaluatorEnabled !== undefined) await setAdminSetting('prompt_evaluator_enabled', promptEvaluatorEnabled);
       const currentEnabled = (await getAdminSetting('enabled_models')) || ALL_MODELS.map(m => m.id);
       return json(200, {
         enabledModels: currentEnabled,
         defaultCoverModel: await getAdminSetting('default_cover_model'),
         defaultPageModel: await getAdminSetting('default_page_model'),
+        promptEvaluatorEnabled: (await getAdminSetting('prompt_evaluator_enabled')) !== false,
       }, origin);
     }
 

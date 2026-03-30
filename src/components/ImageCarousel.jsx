@@ -1,14 +1,40 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   Download,
   Loader2,
   Plus,
+  RefreshCw,
   Sparkles,
   Trash2,
   Wand2,
 } from 'lucide-react';
+
+function RefineInput({ onRefine, generating }) {
+  const [text, setText] = useState('');
+  const handleSubmit = () => {
+    if (!text.trim() || generating) return;
+    onRefine(text.trim());
+    setText('');
+  };
+  return (
+    <div className="carousel__refine">
+      <input
+        type="text"
+        className="carousel__refine-input"
+        placeholder="What should be different? e.g. &quot;make the castle bigger&quot;"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+        disabled={generating}
+      />
+      <button className="btn ghost carousel__refine-btn" onClick={handleSubmit} disabled={!text.trim() || generating}>
+        <RefreshCw size={14} /> Refine
+      </button>
+    </div>
+  );
+}
 
 export default function ImageCarousel({
   attempts,
@@ -19,6 +45,7 @@ export default function ImageCarousel({
   carouselIdx,
   setCarouselIdx,
   onGenerate,
+  onRefine,
   onSelect,
   onDelete,
   onDownload,
@@ -149,6 +176,10 @@ export default function ImageCarousel({
             <Trash2 size={14} /> Delete
           </button>
         </div>
+      )}
+
+      {currentSlide?.type === 'attempt' && onRefine && !generating && (
+        <RefineInput onRefine={onRefine} generating={generating} />
       )}
 
       <div className="carousel__thumbs">

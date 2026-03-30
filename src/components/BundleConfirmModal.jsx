@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { FileText, Image, BookOpen } from 'lucide-react';
 
 export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, onCancel }) {
+  const [bleedPages, setBleedPages] = useState(true);
+
   return (
     <div className="bundle-confirm-overlay">
       <div className="bundle-confirm-card">
@@ -9,16 +12,28 @@ export default function BundleConfirmModal({ loading, loadingLabel, onConfirm, o
           Choose a download format for your coloring book. KDP requires the interior and cover as separate files.
         </p>
 
+        <label className="bundle-toggle">
+          <input
+            type="checkbox"
+            checked={bleedPages}
+            onChange={e => setBleedPages(e.target.checked)}
+          />
+          <span className="bundle-toggle__text">
+            <strong>Add bleed-through protection</strong>
+            <span>Inserts solid black pages between coloring pages to prevent marker bleed-through</span>
+          </span>
+        </label>
+
         <div className="bundle-confirm-options">
           <button
             className="bundle-option"
-            onClick={() => onConfirm('kdp')}
+            onClick={() => onConfirm('kdp', { bleedPages })}
             disabled={loading}
           >
             <BookOpen size={20} />
             <div>
               <strong>KDP Interior PDF</strong>
-              <span>8.5×11", 300 DPI, no cover — upload directly to KDP</span>
+              <span>8.5x11", 300 DPI, no cover — upload directly to KDP</span>
             </div>
           </button>
 

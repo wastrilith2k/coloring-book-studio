@@ -1,5 +1,6 @@
 import { json } from '../../lib/cors.js';
 import { logGeneration, getAdminSetting } from '../../lib/db.js';
+import { evaluatePrompt } from '../../lib/prompt-evaluator.js';
 
 // --- Provider: Gemini ---
 
@@ -18,7 +19,7 @@ const callGemini = async (url, prompt) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'], aspectRatio: '3:4' },
     }),
   });
 };
@@ -143,7 +144,7 @@ const PROVIDER_MAP = {
 
 export const handleGenerateImage = async (ctx) => {
   const { body, origin, userId, userEmail } = ctx;
-  const { prompt, modelId } = body;
+  const { prompt, modelId, refinementFeedback } = body;
 
   if (!prompt || typeof prompt !== 'string') {
     return json(400, { error: 'prompt is required' }, origin);
@@ -161,25 +162,47 @@ export const handleGenerateImage = async (ctx) => {
 
   const provider = PROVIDER_MAP[resolvedModelId] || 'openai';
   const modelInfo = ALL_MODELS.find(m => m.id === resolvedModelId);
-  console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${prompt.length}`);
+
+  // Evaluate/optimize prompt via LLM (if enabled)
+  let finalPrompt = prompt;
+  let optimizedPrompt = null;
+  const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
+  if (evaluatorEnabled) {
+    try {
+      const evalResult = await evaluatePrompt(prompt, { refinementFeedback });
+      finalPrompt = evalResult.optimizedPrompt || prompt;
+      optimizedPrompt = finalPrompt;
+      // Log evaluator cost
+      try {
+        await logGeneration(userId, 'prompt-evaluator', 0.01, userEmail);
+      } catch (e) {
+        console.error('Failed to log evaluator cost:', e.message);
+      }
+    } catch (e) {
+      console.error('Prompt evaluator failed, using original prompt:', e.message);
+      // Fall through with original prompt
+    }
+  }
+
+  console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${finalPrompt.length}, evaluator=${evaluatorEnabled}`);
 
   try {
     const result = provider === 'gemini'
-      ? await generateWithGemini(prompt, resolvedModelId)
-      : await generateWithOpenAI(prompt, resolvedModelId);
+      ? await generateWithGemini(finalPrompt, resolvedModelId)
+      : await generateWithOpenAI(finalPrompt, resolvedModelId);
 
     if (result.error) {
       return json(502, { error: result.error }, origin);
     }
 
-    // Log cost (even if image is later deleted)
+    // Log image generation cost
     try {
       await logGeneration(userId, resolvedModelId, modelInfo?.costCents || 0, userEmail);
     } catch (e) {
       console.error('Failed to log generation cost:', e.message);
     }
 
-    return json(200, { dataUrl: result.dataUrl }, origin);
+    return json(200, { dataUrl: result.dataUrl, optimizedPrompt }, origin);
   } catch (err) {
     console.error('Image generation error:', err);
     return json(500, { error: 'Image generation failed unexpectedly' }, origin);

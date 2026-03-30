@@ -6,7 +6,13 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-const STYLE_HINT = 'Black and white UNCOLORED coloring book page. Thick clean outlines only, no shading, no filled colors, no gradients. Pure white background. Leave all areas blank for a child to color in. Do NOT include any text, titles, labels, captions, or words in the image.';
+const STYLE_HINT = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
+LINE WORK: Thick, confident outlines (2–3pt weight). Clean, fully closed shapes suitable for coloring with crayons or markers. No crosshatching, no stippling, no hatching, no shading, no gray fills, no gradients, no solid black filled areas.
+COMPOSITION: Single centered scene with a clear foreground subject and a simple background. Leave generous white space between elements. Portrait orientation (taller than wide).
+STYLE: Friendly, rounded, slightly cartoonish proportions. Large distinct areas to color in. Age-appropriate detail — enough to be interesting, not so much it overwhelms small hands.
+BACKGROUND: Pure white. No colored fills anywhere in the image.
+TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.
+OUTPUT: High-contrast black lines on white, print-ready at 8.5 × 11 inches.`;
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -312,16 +318,21 @@ export default function BookViewer({
   };
 
   // --- Image generation ---
-  const generateImage = async () => {
+  const [lastOptimizedPrompt, setLastOptimizedPrompt] = useState('');
+
+  const generateImage = async (refinementFeedback) => {
     if (!prompt || !activePage) return;
     setGenerating(true);
     setGenError(null);
     const attempt = async (retry = 0) => {
       try {
-        const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, modelId: effectiveModelId }) });
+        const reqBody = { prompt, modelId: effectiveModelId };
+        if (refinementFeedback) reqBody.refinementFeedback = refinementFeedback;
+        const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
         const data = await res.json();
         if (!data.dataUrl) throw new Error('No image returned');
+        if (data.optimizedPrompt) setLastOptimizedPrompt(data.optimizedPrompt);
         await saveGeneratedImage(data.dataUrl);
       } catch (e) {
         if (retry < 3) return attempt(retry + 1);
@@ -331,6 +342,8 @@ export default function BookViewer({
     await attempt();
     setGenerating(false);
   };
+
+  const refineImage = (feedback) => generateImage(feedback);
 
   const saveGeneratedImage = async dataUrl => {
     if (!activePage || (activePage.isCover && !bookId)) return;
@@ -399,7 +412,7 @@ export default function BookViewer({
 
   const [bundleLoadingLabel, setBundleLoadingLabel] = useState('');
 
-  const buildPdf = async (imageFiles) => {
+  const buildPdf = async (imageFiles, { bleedPages = false } = {}) => {
     const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     // KDP 8.5x11" = 612x792 points (72pt/inch)
     const W = 612, H = 792;
@@ -411,7 +424,8 @@ export default function BookViewer({
     const font = await pdf.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-    for (const f of imageFiles) {
+    for (let fi = 0; fi < imageFiles.length; fi++) {
+      const f = imageFiles[fi];
       const img = f.name.endsWith('.jpg') || f.name.endsWith('.jpeg')
         ? await pdf.embedJpg(f.buf)
         : await pdf.embedPng(f.buf);
@@ -456,11 +470,17 @@ export default function BookViewer({
           color: rgb(0.3, 0.3, 0.3),
         });
       }
+
+      // Insert solid black bleed-through protection page (skip after last page)
+      if (bleedPages && fi < imageFiles.length - 1) {
+        const bleedPage = pdf.addPage([W, H]);
+        bleedPage.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(0, 0, 0) });
+      }
     }
     return pdf.save();
   };
 
-  const downloadApprovedBundle = async (mode = 'kdp') => {
+  const downloadApprovedBundle = async (mode = 'kdp', options = {}) => {
     if (!canDownloadBundle) return;
     setBundleError('');
     setBundleLoading(true);
@@ -474,7 +494,7 @@ export default function BookViewer({
       if (mode === 'kdp') {
         // KDP Interior: pages only, no cover
         if (!interiorFiles.length) throw new Error('No interior pages found');
-        const pdfBytes = await buildPdf(interiorFiles);
+        const pdfBytes = await buildPdf(interiorFiles, { bleedPages: options.bleedPages });
         const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
         downloadImage(URL.createObjectURL(pdfBlob), `${slug}-kdp-interior.pdf`);
       } else if (mode === 'cover') {
@@ -563,8 +583,10 @@ export default function BookViewer({
             coverPrompt={coverPrompt}
             onCoverPromptChange={handleCoverPromptChange}
             currentStyle={activePage && !isCover ? pageStyles[activePage.id] ?? '' : ''}
+            characterGuide={characterGuide}
             onStyleChange={handleStyleChange}
             onStyleBlur={handleStyleBlur}
+            onStyleReset={() => { if (activePage && characterGuide) { setPageStyles(p => ({ ...p, [activePage.id]: characterGuide })); saveField('style', characterGuide, { characterStyle: characterGuide }); } }}
             styleSaving={currentState.styleSaving}
             styleError={styleError}
             currentCharacter={activePage && !isCover ? pageCharacters[activePage.id] ?? '' : ''}
@@ -589,6 +611,8 @@ export default function BookViewer({
             titleSaving={currentState.titleSaving}
             onAiGenerate={handleAiGenerate}
             aiGenerating={aiGenerating}
+            assembledPrompt={prompt}
+            lastOptimizedPrompt={lastOptimizedPrompt}
             imageError={imageError}
             genError={genError}
           />
@@ -603,6 +627,7 @@ export default function BookViewer({
               carouselIdx={carouselIdx}
               setCarouselIdx={setCarouselIdx}
               onGenerate={generateImage}
+              onRefine={refineImage}
               onSelect={toggleApprove}
               onDelete={deleteAttempt}
               onDownload={downloadImage}

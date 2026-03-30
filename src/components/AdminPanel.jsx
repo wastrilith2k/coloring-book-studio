@@ -92,6 +92,7 @@ export default function AdminPanel({ onClose }) {
   const [enabledIds, setEnabledIds] = useState([]);
   const [defaultCoverModel, setDefaultCoverModel] = useState('');
   const [defaultPageModel, setDefaultPageModel] = useState('');
+  const [evaluatorEnabled, setEvaluatorEnabled] = useState(true);
   const [stats, setStats] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,7 @@ export default function AdminPanel({ onClose }) {
           setEnabledIds((data.enabledModels || []).map(m => m.id));
           setDefaultCoverModel(data.defaultCoverModel || '');
           setDefaultPageModel(data.defaultPageModel || '');
+          setEvaluatorEnabled(data.promptEvaluatorEnabled !== false);
         }
         if (statsRes.ok) {
           const data = await statsRes.json();
@@ -330,6 +332,26 @@ export default function AdminPanel({ onClose }) {
               </select>
             </div>
           </div>
+        </div>
+
+        {/* Prompt evaluator toggle */}
+        <div className="admin-section-card">
+          <h3>Prompt Optimizer</h3>
+          <p className="admin-hint">Uses a cheap LLM (~$0.0001/prompt) to improve image generation prompts before sending them to the image model.</p>
+          <button
+            className={`admin-model-toggle ${evaluatorEnabled ? 'is-on' : ''}`}
+            onClick={() => {
+              const next = !evaluatorEnabled;
+              setEvaluatorEnabled(next);
+              saveDefaultModel('promptEvaluatorEnabled', next);
+            }}
+          >
+            {evaluatorEnabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+            <div>
+              <strong>{evaluatorEnabled ? 'Enabled' : 'Disabled'}</strong>
+              <span>Optimizes prompts before image generation</span>
+            </div>
+          </button>
         </div>
       </div>
     </div>

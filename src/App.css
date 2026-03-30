@@ -1731,6 +1731,34 @@
   padding: 8px 14px;
 }
 
+.carousel__refine {
+  display: flex;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.carousel__refine-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.carousel__refine-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.carousel__refine-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 /* --- Thumbnail strip --- */
 .carousel__thumbs {
   display: flex;
@@ -1828,6 +1856,38 @@
   font-weight: 600;
   font-size: 13px;
   margin-top: 12px;
+}
+
+.bundle-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.bundle-toggle input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.bundle-toggle__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bundle-toggle__text strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.bundle-toggle__text span {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .bundle-confirm-options {
@@ -1981,6 +2041,64 @@
 
 .prompt-field__collapse-toggle:hover {
   color: var(--text-primary);
+}
+
+.prompt-field__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prompt-field__inherit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.prompt-field__inherit--custom {
+  color: var(--accent);
+}
+
+.prompt-field__reset {
+  font-size: 11px;
+  padding: 2px 6px;
+  gap: 3px;
+}
+
+.prompt-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-preview__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prompt-preview__label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.prompt-preview__code {
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
 }
 
 .prompt-field textarea {
@@ -2813,6 +2931,13 @@
   font-size: 13px;
   text-align: center;
   padding: 24px 0;
+}
+
+.admin-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0 0 12px;
+  line-height: 1.4;
 }
 
 /* Daily chart */

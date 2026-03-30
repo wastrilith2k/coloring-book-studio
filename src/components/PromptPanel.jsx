@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronRight, Sparkles, StickyNote } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Code, RotateCcw, Sparkles, StickyNote } from 'lucide-react';
 import PromptTip, { PROMPT_TIPS } from './PromptTip.jsx';
 import PromptGuide from './PromptGuide.jsx';
 
@@ -12,8 +12,10 @@ export default function PromptPanel({
   onCoverPromptChange,
   // Style
   currentStyle,
+  characterGuide,
   onStyleChange,
   onStyleBlur,
+  onStyleReset,
   styleSaving,
   styleError,
   // Character
@@ -44,11 +46,18 @@ export default function PromptPanel({
   // AI Generate
   onAiGenerate,
   aiGenerating,
+  // Prompt preview
+  assembledPrompt,
+  lastOptimizedPrompt,
   // Errors
   imageError,
   genError,
 }) {
   const [characterOpen, setCharacterOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const isStyleCustomized = characterGuide && currentStyle && currentStyle !== characterGuide;
+  const isStyleDefault = characterGuide && currentStyle === characterGuide;
 
   return (
     <div className="main-layout__prompts">
@@ -99,7 +108,20 @@ export default function PromptPanel({
               placeholder="Describe the art style for this page (e.g. whimsical, detailed, cartoon)."
               rows={3}
             />
-            {styleSaving && <span className="pill subtle">Saving...</span>}
+            <div className="prompt-field__meta">
+              {styleSaving && <span className="pill subtle">Saving...</span>}
+              {isStyleDefault && <span className="prompt-field__inherit">Inherited from book concept</span>}
+              {isStyleCustomized && (
+                <>
+                  <span className="prompt-field__inherit prompt-field__inherit--custom">Custom for this page</span>
+                  {onStyleReset && (
+                    <button className="btn ghost prompt-field__reset" onClick={onStyleReset}>
+                      <RotateCcw size={11} /> Reset to default
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
             {styleError && <div className="book-viewer__alert">{styleError}</div>}
           </div>
 
@@ -172,6 +194,33 @@ export default function PromptPanel({
               placeholder="Internal notes for this page..."
               rows={2}
             />
+          </div>
+
+          {/* Prompt preview (advanced, off by default) */}
+          <div className="prompt-field">
+            <button
+              type="button"
+              className="prompt-field__collapse-toggle"
+              onClick={() => setPreviewOpen(o => !o)}
+            >
+              {previewOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <Code size={12} />
+              <span>View prompt</span>
+            </button>
+            {previewOpen && (
+              <div className="prompt-preview">
+                <div className="prompt-preview__section">
+                  <span className="prompt-preview__label">Assembled prompt</span>
+                  <pre className="prompt-preview__code">{assembledPrompt || '(empty)'}</pre>
+                </div>
+                {lastOptimizedPrompt && (
+                  <div className="prompt-preview__section">
+                    <span className="prompt-preview__label">Last optimized prompt (sent to model)</span>
+                    <pre className="prompt-preview__code">{lastOptimizedPrompt}</pre>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
