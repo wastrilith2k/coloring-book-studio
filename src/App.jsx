@@ -130,18 +130,18 @@ function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setC
         <div className="page-count-picker">
           <button
             className="page-count-btn"
-            onClick={() => setPageCount(c => Math.max(5, c - 1))}
-            disabled={pageCount <= 5}
+            onClick={() => setPageCount(c => Math.max(12, c - 1))}
+            disabled={pageCount <= 12}
           >-</button>
           <input
             className="page-count-input"
             type="number"
-            min={5}
+            min={12}
             max={50}
             value={pageCount}
             onChange={e => {
               const v = parseInt(e.target.value, 10);
-              if (!isNaN(v)) setPageCount(Math.max(5, Math.min(50, v)));
+              if (!isNaN(v)) setPageCount(Math.max(12, Math.min(50, v)));
             }}
           />
           <button
@@ -150,6 +150,11 @@ function WizardStep1({ theme, setTheme, audience, setAudience, customTheme, setC
             disabled={pageCount >= 50}
           >+</button>
         </div>
+        {pageCount < 24 && (
+          <p className="wizard-hint wizard-hint--warn">
+            KDP requires at least 24 interior pages. With bleed-through protection enabled, {pageCount} coloring pages becomes {pageCount * 2 - 1} interior pages{pageCount * 2 - 1 >= 24 ? ' — you\'re covered!' : `. You'll need at least ${Math.ceil((24 - pageCount * 2 + 1) / 2)} more coloring pages or filler pages to meet the minimum.`}
+          </p>
+        )}
       </div>
 
       <button
@@ -774,6 +779,7 @@ export default function App({ signOut, user }) {
                   tagLine={bookData?.tagLine || ''}
                   bookNotes={bookData?.notes || ''}
                   onPagesChanged={() => fetchBook(activeId)}
+                  onPageNav={() => setShowLibrary(false)}
                 />
               </div>
             </div>

@@ -36,6 +36,7 @@ export default function BookViewer({
   tagLine = '',
   bookNotes: initialBookNotes = '',
   onPagesChanged,
+  onPageNav,
 }) {
   const pages = useMemo(
     () => (storyPages && storyPages.length ? storyPages : []),
@@ -549,11 +550,17 @@ export default function BookViewer({
                 <p className="book-viewer__scene">
                   {allApproved ? 'All pages selected — ready to download.' : 'Select an image for every page to enable download.'}
                 </p>
+                {pages.length < 24 && (
+                  <p className="book-viewer__kdp-warn">
+                    KDP requires 24+ interior pages. With bleed-through protection, your {pages.length} pages become {pages.length * 2 - 1} pages
+                    {pages.length * 2 - 1 >= 24 ? ' — meets KDP minimum.' : ' — below the 24-page minimum.'}
+                  </p>
+                )}
               </div>
               <div className="book-viewer__actions">
                 <button className="btn ghost" disabled>{approvedCount}/{pages.length + 1} selected</button>
                 <button className="btn primary" onClick={() => canDownloadBundle && setBundleConfirm(true)} disabled={!canDownloadBundle || bundleLoading}>
-                  {bundleLoading ? 'Preparing...' : 'Download for KDP'}
+                  {bundleLoading ? 'Preparing...' : 'Download'}
                 </button>
               </div>
             </div>
@@ -572,7 +579,7 @@ export default function BookViewer({
         <PageList
           navPages={navPages}
           activePage={activePage}
-          setActivePage={setActivePage}
+          setActivePage={p => { setActivePage(p); onPageNav?.(); }}
           pageState={pageState}
           approvedUrlForPage={approvedUrlForPage}
           pageTitles={pageTitles}

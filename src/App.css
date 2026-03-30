@@ -899,6 +899,18 @@
   justify-content: center;
 }
 
+.wizard-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.wizard-hint--warn {
+  color: var(--warning, #f59e0b);
+}
+
 .page-count-btn {
   width: 36px;
   height: 36px;
@@ -2294,6 +2306,13 @@
   color: var(--text-secondary);
   max-width: 640px;
   line-height: 1.5;
+}
+
+.book-viewer__kdp-warn {
+  font-size: 11px;
+  color: var(--warning, #f59e0b);
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 
 .book-viewer__actions {
