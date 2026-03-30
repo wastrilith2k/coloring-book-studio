@@ -323,12 +323,13 @@ export default function BookViewer({
 
   const generateImage = async (refinementFeedback) => {
     if (!prompt || !activePage) return;
+    const feedback = typeof refinementFeedback === 'string' ? refinementFeedback : undefined;
     setGenerating(true);
     setGenError(null);
     const attempt = async (retry = 0) => {
       try {
         const reqBody = { prompt, modelId: effectiveModelId };
-        if (refinementFeedback) reqBody.refinementFeedback = refinementFeedback;
+        if (feedback) reqBody.refinementFeedback = feedback;
         const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
         const data = await res.json();
