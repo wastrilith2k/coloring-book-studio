@@ -19,7 +19,7 @@ const callGemini = async (url, prompt) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ['TEXT', 'IMAGE'], aspectRatio: '3:4' },
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
 };
@@ -58,7 +58,8 @@ const generateWithGemini = async (prompt, modelId) => {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  let res = await callGemini(url, prompt);
+  const geminiPrompt = prompt + '\n\nIMPORTANT: Generate the image in 3:4 portrait aspect ratio (taller than wide), suitable for an 8.5x11 inch page.';
+  let res = await callGemini(url, geminiPrompt);
   let result = await extractGeminiImage(res);
 
   // If blocked for copyright/safety, retry with a sanitized prompt
