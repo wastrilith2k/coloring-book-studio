@@ -95,6 +95,31 @@ export default function PromptPanel({
               rows={3}
             />
           </div>
+          <div className="prompt-field">
+            <button
+              type="button"
+              className="prompt-field__collapse-toggle"
+              onClick={() => setPreviewOpen(o => !o)}
+            >
+              {previewOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <Code size={12} />
+              <span>View prompt</span>
+            </button>
+            {previewOpen && (
+              <div className="prompt-preview">
+                <div className="prompt-preview__section">
+                  <span className="prompt-preview__label">Assembled prompt</span>
+                  <pre className="prompt-preview__code">{assembledPrompt || '(empty)'}</pre>
+                </div>
+                {lastOptimizedPrompt && (
+                  <div className="prompt-preview__section">
+                    <span className="prompt-preview__label">Last optimized prompt (sent to model)</span>
+                    <pre className="prompt-preview__code">{lastOptimizedPrompt}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="prompt-stack">
