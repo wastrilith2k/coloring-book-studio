@@ -145,7 +145,7 @@ const PROVIDER_MAP = {
 
 export const handleGenerateImage = async (ctx) => {
   const { body, origin, userId, userEmail } = ctx;
-  const { prompt, modelId, refinementFeedback } = body;
+  const { prompt, modelId, refinementFeedback, isCover } = body;
 
   if (!prompt || typeof prompt !== 'string') {
     return json(400, { error: 'prompt is required' }, origin);
@@ -170,7 +170,7 @@ export const handleGenerateImage = async (ctx) => {
   const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
   if (evaluatorEnabled) {
     try {
-      const evalResult = await evaluatePrompt(prompt, { refinementFeedback });
+      const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover });
       finalPrompt = evalResult.optimizedPrompt || prompt;
       optimizedPrompt = finalPrompt;
       // Log evaluator cost

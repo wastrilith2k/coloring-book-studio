@@ -45,11 +45,11 @@ export default function BookViewer({
 
   const coverPromptTemplate = useMemo(() => {
     const titleText = bookTitle
-      ? `Cover illustration for "${bookTitle}"`
-      : 'Cover illustration for the book';
+      ? `Full color cover illustration for "${bookTitle}"`
+      : 'Full color cover illustration for the book';
     const parts = [titleText];
     if (tagLine) parts.push(tagLine);
-    parts.push('White background, clean bold lines, coloring book cover, room for title text at top');
+    parts.push('Vibrant full-color fantasy illustration. Detailed, eye-catching coloring book cover art. Ornate decorative border. Leave room for title text at the top and subtitle at the bottom. Rich colors, dynamic composition.');
     return parts.join('. ');
   }, [bookTitle, tagLine]);
 
@@ -328,7 +328,7 @@ export default function BookViewer({
     setGenError(null);
     const attempt = async (retry = 0) => {
       try {
-        const reqBody = { prompt, modelId: effectiveModelId };
+        const reqBody = { prompt, modelId: effectiveModelId, isCover };
         if (feedback) reqBody.refinementFeedback = feedback;
         const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
