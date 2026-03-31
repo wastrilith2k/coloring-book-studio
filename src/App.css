@@ -1117,6 +1117,13 @@
   border-color: var(--chat-bubble-assistant-border);
 }
 
+.chat-add-pages-btn {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
 .chat-role {
   display: inline-block;
   font-size: 11px;

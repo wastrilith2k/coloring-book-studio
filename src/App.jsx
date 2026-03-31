@@ -807,6 +807,27 @@ export default function App({ signOut, user }) {
                       }
                     : null
                 }
+                onAddPages={async (pages) => {
+                  if (!activeId || !bookData) return;
+                  try {
+                    const newPages = pages.map(p => ({
+                      title: p.title || '',
+                      scene: p.scene || '',
+                      prompt: p.prompt || p.scene || '',
+                      caption: p.caption || '',
+                      characterStyle: bookData.concept || '',
+                    }));
+                    const res = await apiFetch(`/api/books/${activeId}/pages`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ pages: newPages }),
+                    });
+                    if (!res.ok) throw new Error('Failed to add pages');
+                    fetchBook(activeId);
+                  } catch (e) {
+                    console.error('Failed to add pages from chat:', e);
+                  }
+                }}
               />
             </div>
           </>
