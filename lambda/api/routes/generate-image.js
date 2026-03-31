@@ -139,8 +139,8 @@ const generateWithFal = async (prompt, modelId) => {
   };
   const falModel = modelMap[modelId] || modelMap['flux-schnell'];
 
-  // Submit the request
-  const res = await fetch(`https://queue.fal.run/${falModel}`, {
+  // Synchronous request (waits for result)
+  const res = await fetch(`https://fal.run/${falModel}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
