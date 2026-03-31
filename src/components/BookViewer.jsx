@@ -68,7 +68,6 @@ export default function BookViewer({
   const [promptError, setPromptError] = useState('');
   const [pageStyles, setPageStyles] = useState({});
   const [pageCharacters, setPageCharacters] = useState({});
-  const [pageTextInImage, setPageTextInImage] = useState({});
   const [pagePrompts, setPagePrompts] = useState({});
   const [pageCaptions, setPageCaptions] = useState({});
   const [pageNotes, setPageNotes] = useState({});
@@ -107,11 +106,10 @@ export default function BookViewer({
 
   // --- Init on book change ---
   useEffect(() => {
-    const s = {}, ch = {}, ti = {}, pr = {}, c = {}, n = {}, t = {};
+    const s = {}, ch = {}, pr = {}, c = {}, n = {}, t = {};
     pages.forEach(p => {
       s[p.id] = p.characterStyle ?? characterGuide ?? '';
       ch[p.id] = p.characterDesc ?? '';
-      ti[p.id] = !!p.textInImage;
       pr[p.id] = p.prompt || p.scene || '';
       c[p.id] = p.caption || '';
       n[p.id] = p.notes || '';
@@ -119,7 +117,6 @@ export default function BookViewer({
     });
     setPageStyles(s);
     setPageCharacters(ch);
-    setPageTextInImage(ti);
     setPagePrompts(pr);
     setPageCaptions(c);
     setPageNotes(n);
@@ -146,18 +143,13 @@ export default function BookViewer({
     const styleText = pageStyles[page.id] ?? '';
     const characterText = pageCharacters[page.id] ?? '';
     const scenePrompt = pagePrompts[page.id] ?? '';
-    const caption = pageCaptions[page.id] ?? '';
-    const includeText = pageTextInImage[page.id] ?? false;
     const sections = [];
-    // Merge theme + style into one style-guide section (they were duplicating)
     const styleGuide = [characterGuide, styleText].filter(Boolean).join('\n');
-    const styleHint = includeText ? STYLE_HINT_BASE : `${STYLE_HINT_BASE}\n${NO_TEXT_RULE}`;
-    sections.push(`<style>\n${styleHint}\n</style>`);
+    sections.push(`<style>\n${STYLE_HINT_BASE}\n${NO_TEXT_RULE}\n</style>`);
     if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
     if (title) sections.push(`<title>\n${title}\n</title>`);
     if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
     if (scenePrompt) sections.push(`<illustration>\n${scenePrompt}\n</illustration>`);
-    if (includeText && caption) sections.push(`<caption>\n${caption}\n</caption>`);
     return sections.join('\n');
   };
   const prompt = isCover ? coverPrompt : buildPrompt(activePage);
@@ -413,7 +405,7 @@ export default function BookViewer({
       const buf = file.url
         ? await (await fetch(file.url)).arrayBuffer()
         : (() => { const bin = atob(file.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; })();
-      return { name: file.name, buf, title: file.title || '', caption: file.caption || '', textInImage: !!file.textInImage };
+      return { name: file.name, buf, title: file.title || '', caption: file.caption || '' };
     }));
     return { files: imageBuffers, title: data.title };
   };
@@ -440,10 +432,9 @@ export default function BookViewer({
       const page = pdf.addPage([W, H]);
       const { width: imgW, height: imgH } = img.scale(1);
 
-      // Skip PDF text overlay if text is already baked into the image
       const isCoverFile = f.name.startsWith('00-cover');
-      const hasTitle = f.title && !isCoverFile && !f.textInImage;
-      const hasCaption = f.caption && !isCoverFile && !f.textInImage;
+      const hasTitle = f.title && !isCoverFile;
+      const hasCaption = f.caption && !isCoverFile;
       const titleH = hasTitle ? TITLE_SIZE + TEXT_GAP : 0;
       const captionH = hasCaption ? CAPTION_SIZE + TEXT_GAP : 0;
 
@@ -634,8 +625,6 @@ export default function BookViewer({
             titleSaving={currentState.titleSaving}
             onAiGenerate={handleAiGenerate}
             aiGenerating={aiGenerating}
-            textInImage={activePage && !isCover ? pageTextInImage[activePage.id] ?? false : false}
-            onTextInImageChange={checked => { if (activePage && !isCover) { setPageTextInImage(p => ({ ...p, [activePage.id]: checked })); saveField('textInImage', checked ? 1 : 0); } }}
             assembledPrompt={prompt}
             lastOptimizedPrompt={lastOptimizedPrompt}
             imageError={imageError}

@@ -12,9 +12,8 @@ export const PROMPT_TIPS = {
     'A coloring-book style hint is automatically appended.',
   ],
   caption: [
-    'Added to PDF export below the image.',
-    'Enable "Include text in image" to also render it in the generated image.',
-    'If both are on, text appears in both the image and PDF — disable one to avoid duplicates.',
+    'Printed below the image in the PDF export.',
+    'Not included in image generation — text is added during export only.',
     'e.g. "Color the dragon\'s scales any color you like!"',
   ],
   cover: [

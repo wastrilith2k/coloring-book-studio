@@ -622,7 +622,6 @@ export default function App({ signOut, user }) {
         characterStyle:
           p.character_style || p.characterStyle || bookData?.concept || '',
         characterDesc: p.character_desc || p.characterDesc || '',
-        textInImage: !!(p.text_in_image || p.textInImage),
         includeCharacterGuide: true,
       })),
     [bookData]

@@ -46,9 +46,6 @@ export default function PromptPanel({
   // AI Generate
   onAiGenerate,
   aiGenerating,
-  // Text in image toggle
-  textInImage,
-  onTextInImageChange,
   // Prompt preview
   assembledPrompt,
   lastOptimizedPrompt,
@@ -204,19 +201,10 @@ export default function PromptPanel({
               value={currentCaption}
               onChange={onCaptionChange}
               onBlur={onCaptionBlur}
-              placeholder="Caption printed below the image. Also added to PDF export."
+              placeholder="Caption printed below the image in the PDF export."
               rows={2}
             />
             {captionSaving && <span className="pill subtle">Saving...</span>}
-            <label className="prompt-field__inline-toggle">
-              <input
-                type="checkbox"
-                checked={textInImage}
-                onChange={e => onTextInImageChange?.(e.target.checked)}
-              />
-              <span>Include title & caption in generated image</span>
-            </label>
-            {textInImage && <span className="prompt-field__inherit">Title and caption will render as part of the image. Disable to keep them PDF-only and avoid duplicates.</span>}
           </div>
           <div className="prompt-field">
             <label htmlFor="page-notes">
