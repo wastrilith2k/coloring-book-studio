@@ -347,6 +347,26 @@ export default function BookViewer({
     setAddingPages(false);
   };
 
+  const handleMovePage = async (pageId, direction) => {
+    const storyPages = pages.filter(p => !p.isCover);
+    const idx = storyPages.findIndex(p => p.id === pageId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= storyPages.length) return;
+    const pageA = storyPages[idx];
+    const pageB = storyPages[swapIdx];
+    // Swap sort_order values
+    try {
+      await Promise.all([
+        apiFetch(`/api/pages/${pageA.id}`, { method: 'PUT', body: JSON.stringify({ sortOrder: pageB.sort_order ?? swapIdx }) }),
+        apiFetch(`/api/pages/${pageB.id}`, { method: 'PUT', body: JSON.stringify({ sortOrder: pageA.sort_order ?? idx }) }),
+      ]);
+      if (typeof onPagesChanged === 'function') onPagesChanged();
+    } catch (e) {
+      setPromptError(e.message);
+    }
+  };
+
   const handleDeletePage = async (pageId) => {
     if (!pageId || !bookId) return;
     try {
@@ -651,6 +671,7 @@ export default function BookViewer({
           pageTitles={pageTitles}
           onAddPage={handleAddPage}
           onAddAiPages={() => setShowAddPages(s => !s)}
+          onMovePage={handleMovePage}
           onDeletePage={handleDeletePage}
         />
       </aside>

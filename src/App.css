@@ -1117,8 +1117,40 @@
   border-color: var(--chat-bubble-assistant-border);
 }
 
-.chat-add-pages-btn {
+.chat-pages-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 8px;
+}
+
+.chat-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.chat-page-card strong {
+  color: var(--text-primary);
+}
+
+.chat-page-card span {
+  color: var(--text-secondary);
+}
+
+.chat-page-card em {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.chat-add-pages-btn {
+  margin-top: 4px;
   font-size: 12px;
   padding: 6px 12px;
   width: 100%;
@@ -2750,12 +2782,39 @@
 /* Page card wrap for delete button */
 .page-card-wrap {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.page-card-wrap:hover .page-card__actions {
+  opacity: 1;
+}
+
+.page-card__move {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.page-card__move .btn-tiny {
+  padding: 1px 4px;
+  line-height: 1;
+}
+
+.page-card__move .btn-tiny:disabled {
+  opacity: 0.2;
 }
 
 .page-card__delete {
-  position: absolute;
-  top: 4px;
-  right: 4px;
   width: 24px;
   height: 24px;
   border-radius: 4px;
@@ -2766,12 +2825,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.page-card-wrap:hover .page-card__delete {
-  opacity: 1;
+  transition: color 0.15s;
 }
 
 .page-card__delete:hover {

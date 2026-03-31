@@ -9,7 +9,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 import { apiFetch, chatWs } from '../lib/api.js';
-import readmeText from '../../README.md?raw';
+import chatGuideText from '../chat-guide.md?raw';
 
 const STORAGE_KEY = 'chat:messages:v1';
 
@@ -48,16 +48,7 @@ export default function ChatPanel({ onSaved, bookContext, onAddPages }) {
   const initialMessages = useMemo(() => loadInitialMessages(), []);
 
   const systemContext = useMemo(() => {
-    const appInfo = `You are the AI assistant for Coloring Book Studio. Here is the full app documentation:
-
-${readmeText}
-
-IMPORTANT INSTRUCTIONS:
-- When the user asks you to suggest or generate new pages, respond with a JSON code block containing an array of page objects: \`\`\`json [{"title": "...", "scene": "...", "prompt": "...", "caption": "..."}] \`\`\`
-- "scene" = short 1-sentence description. "prompt" = detailed illustration prompt. "caption" = fun activity text for PDF.
-- The user will see an "Add these pages" button to add them directly to their book.
-- Avoid copyrighted characters (use "fantasy tabletop RPG" not "D&D").
-- Be concise and practical.`;
+    const appInfo = chatGuideText;
 
     if (!bookContext) return appInfo;
     const pageList = (bookContext.pages || [])
@@ -302,6 +293,10 @@ Help the user refine prompts, suggest new scenes, improve page ideas, or answer 
           )}
           {messages.map(msg => {
             const pages = msg.role === 'assistant' ? extractPages(msg.content) : null;
+            // Strip JSON block from displayed text
+            const displayContent = pages
+              ? msg.content.replace(/```(?:json)?\s*\n?\[[\s\S]*?\]\n?```/g, '').trim()
+              : msg.content;
             return (
               <div
                 key={msg.id}
@@ -310,18 +305,27 @@ Help the user refine prompts, suggest new scenes, improve page ideas, or answer 
                 }`}
               >
                 <span className="chat-role">{msg.role}</span>
-                <p>
-                  {msg.content ||
-                    (isLoading && msg.role === 'assistant' ? 'Thinking...' : '')}
-                </p>
-                {pages && onAddPages && (
-                  <button
-                    className="btn primary chat-add-pages-btn"
-                    onClick={() => onAddPages(pages)}
-                  >
-                    <PlusCircle size={14} />
-                    Add {pages.length} page{pages.length === 1 ? '' : 's'} to book
-                  </button>
+                {displayContent ? <p>{displayContent}</p> : null}
+                {!displayContent && isLoading && msg.role === 'assistant' && <p>Thinking...</p>}
+                {pages && (
+                  <div className="chat-pages-preview">
+                    {pages.map((p, i) => (
+                      <div key={i} className="chat-page-card">
+                        <strong>{p.title}</strong>
+                        <span>{p.scene || p.prompt}</span>
+                        {p.caption && <em>{p.caption}</em>}
+                      </div>
+                    ))}
+                    {onAddPages && (
+                      <button
+                        className="btn primary chat-add-pages-btn"
+                        onClick={() => onAddPages(pages)}
+                      >
+                        <PlusCircle size={14} />
+                        Add {pages.length} page{pages.length === 1 ? '' : 's'} to book
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
