@@ -107,10 +107,11 @@ export default function BookViewer({
 
   // --- Init on book change ---
   useEffect(() => {
-    const s = {}, ch = {}, pr = {}, c = {}, n = {}, t = {};
+    const s = {}, ch = {}, ti = {}, pr = {}, c = {}, n = {}, t = {};
     pages.forEach(p => {
       s[p.id] = p.characterStyle ?? characterGuide ?? '';
       ch[p.id] = p.characterDesc ?? '';
+      ti[p.id] = !!p.textInImage;
       pr[p.id] = p.prompt || p.scene || '';
       c[p.id] = p.caption || '';
       n[p.id] = p.notes || '';
@@ -118,6 +119,7 @@ export default function BookViewer({
     });
     setPageStyles(s);
     setPageCharacters(ch);
+    setPageTextInImage(ti);
     setPagePrompts(pr);
     setPageCaptions(c);
     setPageNotes(n);
@@ -411,7 +413,7 @@ export default function BookViewer({
       const buf = file.url
         ? await (await fetch(file.url)).arrayBuffer()
         : (() => { const bin = atob(file.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; })();
-      return { name: file.name, buf, title: file.title || '', caption: file.caption || '' };
+      return { name: file.name, buf, title: file.title || '', caption: file.caption || '', textInImage: !!file.textInImage };
     }));
     return { files: imageBuffers, title: data.title };
   };
@@ -438,8 +440,10 @@ export default function BookViewer({
       const page = pdf.addPage([W, H]);
       const { width: imgW, height: imgH } = img.scale(1);
 
-      const hasTitle = f.title && !f.name.startsWith('00-cover');
-      const hasCaption = f.caption && !f.name.startsWith('00-cover');
+      // Skip PDF text overlay if text is already baked into the image
+      const isCoverFile = f.name.startsWith('00-cover');
+      const hasTitle = f.title && !isCoverFile && !f.textInImage;
+      const hasCaption = f.caption && !isCoverFile && !f.textInImage;
       const titleH = hasTitle ? TITLE_SIZE + TEXT_GAP : 0;
       const captionH = hasCaption ? CAPTION_SIZE + TEXT_GAP : 0;
 
@@ -631,7 +635,7 @@ export default function BookViewer({
             onAiGenerate={handleAiGenerate}
             aiGenerating={aiGenerating}
             textInImage={activePage && !isCover ? pageTextInImage[activePage.id] ?? false : false}
-            onTextInImageChange={checked => { if (activePage && !isCover) setPageTextInImage(p => ({ ...p, [activePage.id]: checked })); }}
+            onTextInImageChange={checked => { if (activePage && !isCover) { setPageTextInImage(p => ({ ...p, [activePage.id]: checked })); saveField('textInImage', checked ? 1 : 0); } }}
             assembledPrompt={prompt}
             lastOptimizedPrompt={lastOptimizedPrompt}
             imageError={imageError}

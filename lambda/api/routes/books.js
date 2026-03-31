@@ -169,6 +169,7 @@ export const handleBooks = async (ctx) => {
         key: page.image_url,
         title: page.title || '',
         caption: page.caption || '',
+        textInImage: !!page.text_in_image,
       });
     }
 
@@ -176,7 +177,7 @@ export const handleBooks = async (ctx) => {
       const url = entry.key.startsWith('users/')
         ? await getPresignedUrl(entry.key)
         : entry.key;
-      return { name: entry.name, url, title: entry.title, caption: entry.caption };
+      return { name: entry.name, url, title: entry.title, caption: entry.caption, textInImage: entry.textInImage };
     }));
 
     return json(200, { files, title: book.title }, origin);
