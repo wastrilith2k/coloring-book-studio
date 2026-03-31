@@ -220,11 +220,12 @@ export const handleGenerateImage = async (ctx) => {
   const provider = PROVIDER_MAP[resolvedModelId] || 'openai';
   const modelInfo = ALL_MODELS.find(m => m.id === resolvedModelId);
 
-  // Evaluate/optimize prompt via LLM (if enabled)
+  // Evaluate/optimize prompt via LLM (if enabled, or if refinement feedback provided)
   let finalPrompt = prompt;
   let optimizedPrompt = null;
   const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
-  if (evaluatorEnabled) {
+  const shouldEvaluate = evaluatorEnabled || refinementFeedback;
+  if (shouldEvaluate) {
     try {
       const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover });
       finalPrompt = evalResult.optimizedPrompt || prompt;
