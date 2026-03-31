@@ -14,7 +14,7 @@ describe('ALL_MODELS', () => {
       expect(model).toHaveProperty('provider');
       expect(model).toHaveProperty('costCents');
       expect(typeof model.costCents).toBe('number');
-      expect(['openai', 'gemini']).toContain(model.provider);
+      expect(['openai', 'gemini', 'fal']).toContain(model.provider);
     }
   });
 
@@ -22,5 +22,6 @@ describe('ALL_MODELS', () => {
     const providers = new Set(ALL_MODELS.map(m => m.provider));
     expect(providers.has('openai')).toBe(true);
     expect(providers.has('gemini')).toBe(true);
+    expect(providers.has('fal')).toBe(true);
   });
 });

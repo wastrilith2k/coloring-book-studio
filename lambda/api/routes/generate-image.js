@@ -125,10 +125,64 @@ const generateWithOpenAI = async (prompt, modelId) => {
   return { dataUrl: `data:image/png;base64,${b64}` };
 };
 
+// --- Provider: fal.ai (Flux) ---
+
+const FAL_MODELS = ['flux-schnell', 'flux-dev'];
+
+const generateWithFal = async (prompt, modelId) => {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) return { error: 'fal.ai not configured' };
+
+  const modelMap = {
+    'flux-schnell': 'fal-ai/flux/schnell',
+    'flux-dev': 'fal-ai/flux/dev',
+  };
+  const falModel = modelMap[modelId] || modelMap['flux-schnell'];
+
+  // Submit the request
+  const res = await fetch(`https://queue.fal.run/${falModel}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Key ${apiKey}`,
+    },
+    body: JSON.stringify({
+      prompt,
+      image_size: { width: 768, height: 1024 },
+      num_images: 1,
+      enable_safety_checker: false,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`fal.ai API error ${res.status}:`, errText);
+    if (res.status === 429) return { error: 'Rate limit exceeded. Please wait a moment and try again.' };
+    let detail = 'Image generation failed. Please try again.';
+    try { const msg = JSON.parse(errText).detail || JSON.parse(errText).message; if (msg) detail = typeof msg === 'string' ? msg : JSON.stringify(msg); } catch { /* use default */ }
+    return { error: detail };
+  }
+
+  const data = await res.json();
+  const imageUrl = data.images?.[0]?.url;
+  if (!imageUrl) {
+    console.error('fal.ai response had no image:', JSON.stringify(data).slice(0, 1500));
+    return { error: 'No image returned from generation service.' };
+  }
+
+  // Download the image and convert to data URL
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) return { error: 'Failed to download generated image.' };
+  const buf = Buffer.from(await imgRes.arrayBuffer());
+  return { dataUrl: `data:image/png;base64,${buf.toString('base64')}` };
+};
+
 // --- Model registry ---
 
 // Cost in cents per image (approximate)
 export const ALL_MODELS = [
+  { id: 'flux-schnell', label: 'Flux Schnell', desc: 'Fast & cheapest (~$0.003)', provider: 'fal', costCents: 0.3 },
+  { id: 'flux-dev', label: 'Flux Dev', desc: 'Higher quality (~$0.025)', provider: 'fal', costCents: 2.5 },
   { id: 'gpt-image-1-mini', label: 'GPT Image Mini', desc: 'Fast & cheap (~$0.005)', provider: 'openai', costCents: 0.5 },
   { id: 'gpt-image-1', label: 'GPT Image 1', desc: 'Higher quality (~$0.015)', provider: 'openai', costCents: 1.5 },
   { id: 'gemini-2.5-flash-image', label: 'Gemini Flash', desc: 'Google (~$0.07)', provider: 'gemini', costCents: 7.0 },
@@ -136,6 +190,8 @@ export const ALL_MODELS = [
 ];
 
 const PROVIDER_MAP = {
+  'flux-schnell': 'fal',
+  'flux-dev': 'fal',
   'gemini-2.5-flash-image': 'gemini',
   'gemini-3.1-flash-image-preview': 'gemini',
   'gemini-3-pro-image-preview': 'gemini',
@@ -188,9 +244,13 @@ export const handleGenerateImage = async (ctx) => {
   console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${finalPrompt.length}, evaluator=${evaluatorEnabled}`);
 
   try {
-    const result = provider === 'gemini'
-      ? await generateWithGemini(finalPrompt, resolvedModelId)
-      : await generateWithOpenAI(finalPrompt, resolvedModelId);
+    const generators = {
+      gemini: generateWithGemini,
+      openai: generateWithOpenAI,
+      fal: generateWithFal,
+    };
+    const generate = generators[provider] || generateWithOpenAI;
+    const result = await generate(finalPrompt, resolvedModelId);
 
     if (result.error) {
       return json(502, { error: result.error }, origin);
