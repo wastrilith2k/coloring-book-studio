@@ -11,6 +11,27 @@ import {
   Wand2,
 } from 'lucide-react';
 
+function PromptPreview({ prompt, onConfirm, onCancel }) {
+  const [editedPrompt, setEditedPrompt] = useState(prompt);
+  return (
+    <div className="carousel__prompt-preview">
+      <p className="carousel__prompt-preview-label">Review the optimized prompt before generating:</p>
+      <textarea
+        className="carousel__prompt-preview-text"
+        value={editedPrompt}
+        onChange={e => setEditedPrompt(e.target.value)}
+        rows={10}
+      />
+      <div className="carousel__prompt-preview-actions">
+        <button className="btn primary" onClick={() => onConfirm(editedPrompt)}>
+          <Wand2 size={14} /> Generate with this prompt
+        </button>
+        <button className="btn ghost" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function RefineInput({ onRefine, generating }) {
   const [text, setText] = useState('');
   const handleSubmit = () => {
@@ -46,6 +67,10 @@ export default function ImageCarousel({
   setCarouselIdx,
   onGenerate,
   onRefine,
+  optimizing,
+  pendingPrompt,
+  onConfirmGenerate,
+  onCancelGenerate,
   onSelect,
   onDelete,
   onDownload,
@@ -92,12 +117,23 @@ export default function ImageCarousel({
                   <Sparkles size={48} />
                   <p>Mixing the ink...</p>
                 </div>
+              ) : optimizing ? (
+                <div className="carousel__loading">
+                  <Sparkles size={48} />
+                  <p>Optimizing prompt...</p>
+                </div>
+              ) : pendingPrompt ? (
+                <PromptPreview
+                  prompt={pendingPrompt.prompt}
+                  onConfirm={onConfirmGenerate}
+                  onCancel={onCancelGenerate}
+                />
               ) : (
                 <>
                   <button
                     className="btn primary carousel__gen-btn"
                     onClick={onGenerate}
-                    disabled={generating || !prompt}
+                    disabled={generating || optimizing || !prompt}
                   >
                     <Wand2 size={20} />
                     Generate page

@@ -201,7 +201,7 @@ const PROVIDER_MAP = {
 
 export const handleGenerateImage = async (ctx) => {
   const { body, origin, userId, userEmail } = ctx;
-  const { prompt, modelId, refinementFeedback, isCover } = body;
+  const { prompt, modelId, refinementFeedback, isCover, previewOnly, skipEvaluator } = body;
 
   if (!prompt || typeof prompt !== 'string') {
     return json(400, { error: 'prompt is required' }, origin);
@@ -220,29 +220,34 @@ export const handleGenerateImage = async (ctx) => {
   const provider = PROVIDER_MAP[resolvedModelId] || 'openai';
   const modelInfo = ALL_MODELS.find(m => m.id === resolvedModelId);
 
-  // Evaluate/optimize prompt via LLM (if enabled, or if refinement feedback provided)
+  // Evaluate/optimize prompt via LLM
   let finalPrompt = prompt;
   let optimizedPrompt = null;
-  const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
-  const shouldEvaluate = evaluatorEnabled || refinementFeedback;
-  if (shouldEvaluate) {
-    try {
-      const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover });
-      finalPrompt = evalResult.optimizedPrompt || prompt;
-      optimizedPrompt = finalPrompt;
-      // Log evaluator cost
+  if (!skipEvaluator) {
+    const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
+    const shouldEvaluate = evaluatorEnabled || refinementFeedback;
+    if (shouldEvaluate) {
       try {
-        await logGeneration(userId, 'prompt-evaluator', 0.01, userEmail);
+        const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover });
+        finalPrompt = evalResult.optimizedPrompt || prompt;
+        optimizedPrompt = finalPrompt;
+        try {
+          await logGeneration(userId, 'prompt-evaluator', 0.01, userEmail);
+        } catch (e) {
+          console.error('Failed to log evaluator cost:', e.message);
+        }
       } catch (e) {
-        console.error('Failed to log evaluator cost:', e.message);
+        console.error('Prompt evaluator failed, using original prompt:', e.message);
       }
-    } catch (e) {
-      console.error('Prompt evaluator failed, using original prompt:', e.message);
-      // Fall through with original prompt
     }
   }
 
-  console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${finalPrompt.length}, evaluator=${evaluatorEnabled}`);
+  // Preview mode: return optimized prompt without generating
+  if (previewOnly) {
+    return json(200, { optimizedPrompt: optimizedPrompt || prompt }, origin);
+  }
+
+  console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${finalPrompt.length}`);
 
   try {
     const generators = {

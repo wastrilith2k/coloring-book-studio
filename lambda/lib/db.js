@@ -29,6 +29,8 @@ export const ensureSchema = async () => {
     "ALTER TABLE generation_log ADD COLUMN user_email TEXT DEFAULT ''",
     "ALTER TABLE pages ADD COLUMN character_desc TEXT DEFAULT ''",
     "ALTER TABLE pages ADD COLUMN text_in_image INTEGER DEFAULT 0",
+    "ALTER TABLE pages ADD COLUMN title_in TEXT DEFAULT 'pdf'",
+    "ALTER TABLE pages ADD COLUMN caption_in TEXT DEFAULT 'pdf'",
   ];
   for (const sql of migrations) {
     try { await db.execute(sql); } catch { /* column already exists */ }
@@ -350,7 +352,7 @@ export const getPage = async (id) => {
   return rows[0] || null;
 };
 
-export const updatePage = async (id, { title, scene, prompt, characterStyle, characterDesc, imageUrl, sortOrder, caption, notes, textInImage }) => {
+export const updatePage = async (id, { title, scene, prompt, characterStyle, characterDesc, imageUrl, sortOrder, caption, notes, textInImage, titleIn, captionIn }) => {
   const db = getDb();
   await db.execute({
     sql: `UPDATE pages SET
@@ -363,9 +365,11 @@ export const updatePage = async (id, { title, scene, prompt, characterStyle, cha
       sort_order = COALESCE(?, sort_order),
       caption = COALESCE(?, caption),
       notes = COALESCE(?, notes),
-      text_in_image = COALESCE(?, text_in_image)
+      text_in_image = COALESCE(?, text_in_image),
+      title_in = COALESCE(?, title_in),
+      caption_in = COALESCE(?, caption_in)
     WHERE id = ?`,
-    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, characterDesc ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, textInImage ?? null, id],
+    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, characterDesc ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, textInImage ?? null, titleIn ?? null, captionIn ?? null, id],
   });
   const { rows } = await db.execute({
     sql: 'SELECT * FROM pages WHERE id = ?',

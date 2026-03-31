@@ -6,17 +6,16 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-// Short style hint for diffusion models (Flux)
-const STYLE_HINT_SHORT = 'Black and white coloring book page. Thick clean outlines, no shading, no filled colors, no gradients, pure white background. No text or words in the image.';
+const STYLE_HINT = `**Style:** Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
+- **Line work:** Thick, confident outlines (2–3pt weight). Clean, fully closed shapes. No crosshatching, no stippling, no shading, no gray fills, no gradients, no solid black areas.
+- **Composition:** Single centered scene, clear foreground subject, simple background. Generous white space. Portrait orientation.
+- **Look:** Friendly, rounded, slightly cartoonish. Large areas to color in.
+- **Background:** Pure white. No fills anywhere.
+- **Output:** High-contrast black lines on white, 8.5×11 inches.`;
 
-// Structured style hint for LLM-based models (Gemini)
-const STYLE_HINT_STRUCTURED = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
-LINE WORK: Thick, confident outlines (2–3pt weight). Clean, fully closed shapes suitable for coloring with crayons or markers. No crosshatching, no stippling, no hatching, no shading, no gray fills, no gradients, no solid black filled areas.
-COMPOSITION: Single centered scene with a clear foreground subject and a simple background. Leave generous white space between elements. Portrait orientation (taller than wide).
-STYLE: Friendly, rounded, slightly cartoonish proportions. Large distinct areas to color in. Age-appropriate detail — enough to be interesting, not so much it overwhelms small hands.
-BACKGROUND: Pure white. No colored fills anywhere in the image.
-TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.
-OUTPUT: High-contrast black lines on white, print-ready at 8.5 × 11 inches.`;
+const NO_TEXT_HINT = '- **Text:** Do NOT include any text, titles, labels, or words in the image.';
+const INCLUDE_TITLE_HINT = (title) => `- **Title:** Render "${title}" as stylized text at the top of the image.`;
+const INCLUDE_CAPTION_HINT = (caption) => `- **Caption:** Render "${caption}" as text at the bottom of the image.`;
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -72,6 +71,8 @@ export default function BookViewer({
   const [promptError, setPromptError] = useState('');
   const [pageStyles, setPageStyles] = useState({});
   const [pageCharacters, setPageCharacters] = useState({});
+  const [pageTitleIn, setPageTitleIn] = useState({});     // 'pdf' or 'image'
+  const [pageCaptionIn, setPageCaptionIn] = useState({}); // 'pdf' or 'image'
   const [pagePrompts, setPagePrompts] = useState({});
   const [pageCaptions, setPageCaptions] = useState({});
   const [pageNotes, setPageNotes] = useState({});
@@ -110,10 +111,12 @@ export default function BookViewer({
 
   // --- Init on book change ---
   useEffect(() => {
-    const s = {}, ch = {}, pr = {}, c = {}, n = {}, t = {};
+    const s = {}, ch = {}, ti = {}, ci = {}, pr = {}, c = {}, n = {}, t = {};
     pages.forEach(p => {
       s[p.id] = p.characterStyle ?? characterGuide ?? '';
       ch[p.id] = p.characterDesc ?? '';
+      ti[p.id] = p.titleIn || 'pdf';
+      ci[p.id] = p.captionIn || 'pdf';
       pr[p.id] = p.prompt || p.scene || '';
       c[p.id] = p.caption || '';
       n[p.id] = p.notes || '';
@@ -121,6 +124,8 @@ export default function BookViewer({
     });
     setPageStyles(s);
     setPageCharacters(ch);
+    setPageTitleIn(ti);
+    setPageCaptionIn(ci);
     setPagePrompts(pr);
     setPageCaptions(c);
     setPageNotes(n);
@@ -148,34 +153,33 @@ export default function BookViewer({
     return enabledModels[0]?.id || imageModelId;
   })();
 
-  const isLlmModel = (modelId) => modelId?.startsWith('gemini') || modelId?.startsWith('gpt-');
-
   const buildPrompt = page => {
     if (!page) return '';
     const title = pageTitles[page.id] ?? page.title ?? '';
     const styleText = pageStyles[page.id] ?? '';
     const characterText = pageCharacters[page.id] ?? '';
     const scenePrompt = pagePrompts[page.id] ?? '';
+    const caption = pageCaptions[page.id] ?? '';
+    const titleIn = pageTitleIn[page.id] ?? 'pdf';
+    const captionIn = pageCaptionIn[page.id] ?? 'pdf';
     const dedupedStyle = (styleText && styleText !== characterGuide) ? styleText : '';
-    const styleGuide = [characterGuide, dedupedStyle].filter(Boolean).join(' ');
 
-    if (isLlmModel(effectiveModelId)) {
-      // Structured XML for LLM-based models (Gemini, GPT)
-      const sections = [];
-      sections.push(`<style>\n${STYLE_HINT_STRUCTURED}\n</style>`);
-      if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
-      if (title) sections.push(`<title>\n${title}\n</title>`);
-      if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
-      if (scenePrompt) sections.push(`<illustration>\n${scenePrompt}\n</illustration>`);
-      return sections.join('\n');
-    }
+    const lines = [STYLE_HINT];
 
-    // Flat prompt for diffusion models (Flux, etc.) — no book concept, just page-specific content
-    const parts = [STYLE_HINT_SHORT];
-    if (title) parts.push(title);
-    if (characterText) parts.push(characterText);
-    if (scenePrompt) parts.push(scenePrompt);
-    return parts.join('. ');
+    // Text placement rules
+    const textRules = [];
+    if (titleIn === 'image' && title) textRules.push(INCLUDE_TITLE_HINT(title));
+    if (captionIn === 'image' && caption) textRules.push(INCLUDE_CAPTION_HINT(caption));
+    if (titleIn !== 'image' && captionIn !== 'image') textRules.push(NO_TEXT_HINT);
+    if (textRules.length) lines.push(textRules.join('\n'));
+
+    if (characterGuide) lines.push(`\n**Theme:** ${characterGuide}`);
+    if (dedupedStyle) lines.push(`\n**Page style:** ${dedupedStyle}`);
+    if (title) lines.push(`\n**Subject:** ${title}`);
+    if (characterText) lines.push(`\n**Character:** ${characterText}`);
+    if (scenePrompt) lines.push(`\n**Illustration:** ${scenePrompt}`);
+
+    return lines.join('\n');
   };
   const prompt = isCover ? coverPrompt : buildPrompt(activePage);
   const hasStoryPages = pages.length > 0;
@@ -399,23 +403,46 @@ export default function BookViewer({
     }
   };
 
-  // --- Image generation ---
+  // --- Image generation with prompt preview ---
   const [lastOptimizedPrompt, setLastOptimizedPrompt] = useState('');
+  const [pendingPrompt, setPendingPrompt] = useState(null); // { prompt, modelId, isCover, feedback }
+  const [optimizing, setOptimizing] = useState(false);
 
-  const generateImage = async (refinementFeedback) => {
+  // Step 1: Optimize prompt and show preview
+  const requestGeneration = async (refinementFeedback) => {
     if (!prompt || !activePage) return;
     const feedback = typeof refinementFeedback === 'string' ? refinementFeedback : undefined;
+    setOptimizing(true);
+    setGenError(null);
+    try {
+      const reqBody = { prompt, modelId: effectiveModelId, isCover, previewOnly: true };
+      if (feedback) reqBody.refinementFeedback = feedback;
+      const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
+      const data = await res.json();
+      const optimized = data.optimizedPrompt || prompt;
+      setLastOptimizedPrompt(optimized);
+      setPendingPrompt({ prompt: optimized, modelId: effectiveModelId, isCover });
+    } catch (e) {
+      setGenError(`Prompt optimization failed: ${e.message}`);
+    }
+    setOptimizing(false);
+  };
+
+  // Step 2: Generate with the approved (possibly edited) prompt
+  const confirmGeneration = async (finalPrompt) => {
+    const p = finalPrompt || pendingPrompt?.prompt;
+    if (!p || !activePage) return;
+    setPendingPrompt(null);
     setGenerating(true);
     setGenError(null);
     const attempt = async (retry = 0) => {
       try {
-        const reqBody = { prompt, modelId: effectiveModelId, isCover };
-        if (feedback) reqBody.refinementFeedback = feedback;
+        const reqBody = { prompt: p, modelId: effectiveModelId, isCover, skipEvaluator: true };
         const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
         const data = await res.json();
         if (!data.dataUrl) throw new Error('No image returned');
-        if (data.optimizedPrompt) setLastOptimizedPrompt(data.optimizedPrompt);
         await saveGeneratedImage(data.dataUrl);
       } catch (e) {
         if (retry < 3) return attempt(retry + 1);
@@ -426,7 +453,7 @@ export default function BookViewer({
     setGenerating(false);
   };
 
-  const refineImage = (feedback) => generateImage(feedback);
+  const refineImage = (feedback) => requestGeneration(feedback);
 
   const saveGeneratedImage = async dataUrl => {
     if (!activePage || (activePage.isCover && !bookId)) return;
@@ -488,7 +515,7 @@ export default function BookViewer({
       const buf = file.url
         ? await (await fetch(file.url)).arrayBuffer()
         : (() => { const bin = atob(file.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; })();
-      return { name: file.name, buf, title: file.title || '', caption: file.caption || '' };
+      return { name: file.name, buf, title: file.title || '', caption: file.caption || '', titleIn: file.titleIn || 'pdf', captionIn: file.captionIn || 'pdf' };
     }));
     return { files: imageBuffers, title: data.title };
   };
@@ -516,8 +543,8 @@ export default function BookViewer({
       const { width: imgW, height: imgH } = img.scale(1);
 
       const isCoverFile = f.name.startsWith('00-cover');
-      const hasTitle = f.title && !isCoverFile;
-      const hasCaption = f.caption && !isCoverFile;
+      const hasTitle = f.title && !isCoverFile && f.titleIn !== 'image';
+      const hasCaption = f.caption && !isCoverFile && f.captionIn !== 'image';
       const titleH = hasTitle ? TITLE_SIZE + TEXT_GAP : 0;
       const captionH = hasCaption ? CAPTION_SIZE + TEXT_GAP : 0;
 
@@ -733,6 +760,10 @@ export default function BookViewer({
             onCaptionChange={handleCaptionChange}
             onCaptionBlur={handleCaptionBlur}
             captionSaving={currentState.captionSaving}
+            titleIn={activePage && !isCover ? pageTitleIn[activePage.id] ?? 'pdf' : 'pdf'}
+            onTitleInChange={v => { if (activePage && !isCover) { setPageTitleIn(p => ({ ...p, [activePage.id]: v })); saveField('titleIn', v); } }}
+            captionIn={activePage && !isCover ? pageCaptionIn[activePage.id] ?? 'pdf' : 'pdf'}
+            onCaptionInChange={v => { if (activePage && !isCover) { setPageCaptionIn(p => ({ ...p, [activePage.id]: v })); saveField('captionIn', v); } }}
             currentPageNotes={activePage && !isCover ? pageNotes[activePage.id] ?? '' : ''}
             onPageNotesChange={handlePageNotesChange}
             onPageNotesBlur={handlePageNotesBlur}
@@ -757,8 +788,12 @@ export default function BookViewer({
               prompt={prompt}
               carouselIdx={carouselIdx}
               setCarouselIdx={setCarouselIdx}
-              onGenerate={generateImage}
+              onGenerate={requestGeneration}
               onRefine={refineImage}
+              optimizing={optimizing}
+              pendingPrompt={pendingPrompt}
+              onConfirmGenerate={confirmGeneration}
+              onCancelGenerate={() => setPendingPrompt(null)}
               onSelect={toggleApprove}
               onDelete={deleteAttempt}
               onDownload={downloadImage}

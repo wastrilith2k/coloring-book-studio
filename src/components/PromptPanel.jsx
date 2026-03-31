@@ -3,6 +3,22 @@ import { AlertCircle, ChevronDown, ChevronRight, Code, RotateCcw, Sparkles, Stic
 import PromptTip, { PROMPT_TIPS } from './PromptTip.jsx';
 import PromptGuide from './PromptGuide.jsx';
 
+function PlacementToggle({ label, value, onChange }) {
+  return (
+    <div className="placement-toggle">
+      <span className="placement-toggle__label">{label}</span>
+      <button
+        className={`placement-toggle__btn ${value === 'pdf' ? 'is-active' : ''}`}
+        onClick={() => onChange('pdf')}
+      >PDF</button>
+      <button
+        className={`placement-toggle__btn ${value === 'image' ? 'is-active' : ''}`}
+        onClick={() => onChange('image')}
+      >Image</button>
+    </div>
+  );
+}
+
 export default function PromptPanel({
   activePage,
   isCover,
@@ -35,6 +51,11 @@ export default function PromptPanel({
   onCaptionChange,
   onCaptionBlur,
   captionSaving,
+  // Placement toggles
+  titleIn,
+  onTitleInChange,
+  captionIn,
+  onCaptionInChange,
   // Notes
   currentPageNotes,
   onPageNotesChange,
@@ -73,6 +94,7 @@ export default function PromptPanel({
             onBlur={onTitleBlur}
             placeholder="Page title..."
           />
+          <PlacementToggle label="Title in" value={titleIn} onChange={onTitleInChange} />
         ) : (
           <h2>{activePage?.title ?? 'Select a page'}</h2>
         )}
@@ -211,6 +233,7 @@ export default function PromptPanel({
               rows={2}
             />
             {captionSaving && <span className="pill subtle">Saving...</span>}
+            <PlacementToggle label="Caption in" value={captionIn} onChange={onCaptionInChange} />
           </div>
           <div className="prompt-field">
             <label htmlFor="page-notes">
