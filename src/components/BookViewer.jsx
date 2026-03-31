@@ -6,13 +6,17 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-const STYLE_HINT_BASE = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
+// Short style hint for diffusion models (Flux)
+const STYLE_HINT_SHORT = 'Black and white coloring book page. Thick clean outlines, no shading, no filled colors, no gradients, pure white background. No text or words in the image.';
+
+// Structured style hint for LLM-based models (Gemini)
+const STYLE_HINT_STRUCTURED = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
 LINE WORK: Thick, confident outlines (2–3pt weight). Clean, fully closed shapes suitable for coloring with crayons or markers. No crosshatching, no stippling, no hatching, no shading, no gray fills, no gradients, no solid black filled areas.
 COMPOSITION: Single centered scene with a clear foreground subject and a simple background. Leave generous white space between elements. Portrait orientation (taller than wide).
 STYLE: Friendly, rounded, slightly cartoonish proportions. Large distinct areas to color in. Age-appropriate detail — enough to be interesting, not so much it overwhelms small hands.
 BACKGROUND: Pure white. No colored fills anywhere in the image.
+TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.
 OUTPUT: High-contrast black lines on white, print-ready at 8.5 × 11 inches.`;
-const NO_TEXT_RULE = 'TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.';
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -137,30 +141,44 @@ export default function BookViewer({
 
   // --- Derived ---
   const isCover = Boolean(activePage?.isCover);
-  const buildPrompt = page => {
-    if (!page) return '';
-    const title = pageTitles[page.id] ?? page.title ?? '';
-    const styleText = pageStyles[page.id] ?? '';
-    const characterText = pageCharacters[page.id] ?? '';
-    const scenePrompt = pagePrompts[page.id] ?? '';
-    const sections = [];
-    // Deduplicate: only include per-page style if it differs from book concept
-    const dedupedStyle = (styleText && styleText !== characterGuide) ? styleText : '';
-    const styleGuide = [characterGuide, dedupedStyle].filter(Boolean).join('\n');
-    sections.push(`<style>\n${STYLE_HINT_BASE}\n${NO_TEXT_RULE}\n</style>`);
-    if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
-    if (title) sections.push(`<title>\n${title}\n</title>`);
-    if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
-    if (scenePrompt) sections.push(`<illustration>\n${scenePrompt}\n</illustration>`);
-    return sections.join('\n');
-  };
-  const prompt = isCover ? coverPrompt : buildPrompt(activePage);
   const effectiveModelId = (() => {
     const adminDefault = isCover ? defaultCoverModel : defaultPageModel;
     if (adminDefault && enabledModels.find(m => m.id === adminDefault)) return adminDefault;
     if (enabledModels.find(m => m.id === imageModelId)) return imageModelId;
     return enabledModels[0]?.id || imageModelId;
   })();
+
+  const isLlmModel = (modelId) => modelId?.startsWith('gemini') || modelId?.startsWith('gpt-');
+
+  const buildPrompt = page => {
+    if (!page) return '';
+    const title = pageTitles[page.id] ?? page.title ?? '';
+    const styleText = pageStyles[page.id] ?? '';
+    const characterText = pageCharacters[page.id] ?? '';
+    const scenePrompt = pagePrompts[page.id] ?? '';
+    const dedupedStyle = (styleText && styleText !== characterGuide) ? styleText : '';
+    const styleGuide = [characterGuide, dedupedStyle].filter(Boolean).join(' ');
+
+    if (isLlmModel(effectiveModelId)) {
+      // Structured XML for LLM-based models (Gemini, GPT)
+      const sections = [];
+      sections.push(`<style>\n${STYLE_HINT_STRUCTURED}\n</style>`);
+      if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
+      if (title) sections.push(`<title>\n${title}\n</title>`);
+      if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
+      if (scenePrompt) sections.push(`<illustration>\n${scenePrompt}\n</illustration>`);
+      return sections.join('\n');
+    }
+
+    // Flat prompt for diffusion models (Flux, etc.)
+    const parts = [STYLE_HINT_SHORT];
+    if (styleGuide) parts.push(styleGuide);
+    if (title) parts.push(title);
+    if (characterText) parts.push(characterText);
+    if (scenePrompt) parts.push(scenePrompt);
+    return parts.join('. ');
+  };
+  const prompt = isCover ? coverPrompt : buildPrompt(activePage);
   const hasStoryPages = pages.length > 0;
 
   const updatePageState = (pageId, updater) => {
