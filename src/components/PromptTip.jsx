@@ -7,14 +7,14 @@ export const PROMPT_TIPS = {
     'This is prepended to every generation for consistency.',
   ],
   scene: [
-    'Describe what happens on this specific page.',
-    'Say "no text" if you don\'t want words in the image.',
+    'Describe the illustration for this page.',
     'Be specific about composition: foreground, background, borders.',
     'A coloring-book style hint is automatically appended.',
   ],
   caption: [
-    'Text printed below the image in the final book.',
-    'Not sent to the image generator — purely for print layout.',
+    'Added to PDF export below the image.',
+    'Enable "Include text in image" to also render it in the generated image.',
+    'If both are on, text appears in both the image and PDF — disable one to avoid duplicates.',
     'e.g. "Color the dragon\'s scales any color you like!"',
   ],
   cover: [

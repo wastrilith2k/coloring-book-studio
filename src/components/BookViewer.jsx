@@ -6,13 +6,13 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-const STYLE_HINT = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
+const STYLE_HINT_BASE = `Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
 LINE WORK: Thick, confident outlines (2–3pt weight). Clean, fully closed shapes suitable for coloring with crayons or markers. No crosshatching, no stippling, no hatching, no shading, no gray fills, no gradients, no solid black filled areas.
 COMPOSITION: Single centered scene with a clear foreground subject and a simple background. Leave generous white space between elements. Portrait orientation (taller than wide).
 STYLE: Friendly, rounded, slightly cartoonish proportions. Large distinct areas to color in. Age-appropriate detail — enough to be interesting, not so much it overwhelms small hands.
 BACKGROUND: Pure white. No colored fills anywhere in the image.
-TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.
 OUTPUT: High-contrast black lines on white, print-ready at 8.5 × 11 inches.`;
+const NO_TEXT_RULE = 'TEXT: Do NOT include any text, titles, labels, numbers, letters, captions, watermarks, or written words anywhere in the image.';
 
 const parseJsonSafe = async res => {
   const text = await res.text();
@@ -68,6 +68,7 @@ export default function BookViewer({
   const [promptError, setPromptError] = useState('');
   const [pageStyles, setPageStyles] = useState({});
   const [pageCharacters, setPageCharacters] = useState({});
+  const [pageTextInImage, setPageTextInImage] = useState({});
   const [pagePrompts, setPagePrompts] = useState({});
   const [pageCaptions, setPageCaptions] = useState({});
   const [pageNotes, setPageNotes] = useState({});
@@ -144,14 +145,17 @@ export default function BookViewer({
     const characterText = pageCharacters[page.id] ?? '';
     const scenePrompt = pagePrompts[page.id] ?? '';
     const caption = pageCaptions[page.id] ?? '';
+    const includeText = pageTextInImage[page.id] ?? false;
     const sections = [];
-    sections.push(`<style>\n${STYLE_HINT}\n</style>`);
-    if (characterGuide) sections.push(`<theme>\n${characterGuide}\n</theme>`);
-    if (title) sections.push(`<subject>\n${title}\n</subject>`);
-    if (styleText) sections.push(`<book-style>\n${styleText}\n</book-style>`);
+    // Merge theme + style into one style-guide section (they were duplicating)
+    const styleGuide = [characterGuide, styleText].filter(Boolean).join('\n');
+    const styleHint = includeText ? STYLE_HINT_BASE : `${STYLE_HINT_BASE}\n${NO_TEXT_RULE}`;
+    sections.push(`<style>\n${styleHint}\n</style>`);
+    if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
+    if (title) sections.push(`<title>\n${title}\n</title>`);
     if (characterText) sections.push(`<character>\n${characterText}\n</character>`);
-    if (scenePrompt) sections.push(`<scene>\n${scenePrompt}\n</scene>`);
-    if (caption) sections.push(`<context>\n${caption}\n</context>`);
+    if (scenePrompt) sections.push(`<illustration>\n${scenePrompt}\n</illustration>`);
+    if (includeText && caption) sections.push(`<caption>\n${caption}\n</caption>`);
     return sections.join('\n');
   };
   const prompt = isCover ? coverPrompt : buildPrompt(activePage);
@@ -626,6 +630,8 @@ export default function BookViewer({
             titleSaving={currentState.titleSaving}
             onAiGenerate={handleAiGenerate}
             aiGenerating={aiGenerating}
+            textInImage={activePage && !isCover ? pageTextInImage[activePage.id] ?? false : false}
+            onTextInImageChange={checked => { if (activePage && !isCover) setPageTextInImage(p => ({ ...p, [activePage.id]: checked })); }}
             assembledPrompt={prompt}
             lastOptimizedPrompt={lastOptimizedPrompt}
             imageError={imageError}
