@@ -347,20 +347,19 @@ export default function BookViewer({
     setAddingPages(false);
   };
 
-  const handleMovePage = async (pageId, direction) => {
+  const handleReorderPage = async (pageId, newIndex) => {
     const storyPages = pages.filter(p => !p.isCover);
-    const idx = storyPages.findIndex(p => p.id === pageId);
-    if (idx < 0) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= storyPages.length) return;
-    const pageA = storyPages[idx];
-    const pageB = storyPages[swapIdx];
-    // Swap sort_order values
+    const oldIndex = storyPages.findIndex(p => p.id === pageId);
+    if (oldIndex < 0 || oldIndex === newIndex) return;
+    // Build new order
+    const reordered = [...storyPages];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+    // Update all sort_order values
     try {
-      await Promise.all([
-        apiFetch(`/api/pages/${pageA.id}`, { method: 'PUT', body: JSON.stringify({ sortOrder: pageB.sort_order ?? swapIdx }) }),
-        apiFetch(`/api/pages/${pageB.id}`, { method: 'PUT', body: JSON.stringify({ sortOrder: pageA.sort_order ?? idx }) }),
-      ]);
+      await Promise.all(reordered.map((p, i) =>
+        apiFetch(`/api/pages/${p.id}`, { method: 'PUT', body: JSON.stringify({ sortOrder: i }) })
+      ));
       if (typeof onPagesChanged === 'function') onPagesChanged();
     } catch (e) {
       setPromptError(e.message);
@@ -671,7 +670,7 @@ export default function BookViewer({
           pageTitles={pageTitles}
           onAddPage={handleAddPage}
           onAddAiPages={() => setShowAddPages(s => !s)}
-          onMovePage={handleMovePage}
+          onReorder={handleReorderPage}
           onDeletePage={handleDeletePage}
         />
       </aside>

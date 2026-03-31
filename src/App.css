@@ -2784,7 +2784,33 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.page-card-wrap[draggable="true"] {
+  cursor: grab;
+}
+
+.page-card-wrap.is-dragging {
+  opacity: 0.4;
+}
+
+.page-card-wrap.is-drag-over {
+  border-top: 2px solid var(--accent);
+  margin-top: -2px;
+}
+
+.page-card__grip {
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.page-card-wrap:hover .page-card__grip {
+  opacity: 0.5;
 }
 
 .page-card__actions {
@@ -2797,21 +2823,6 @@
 
 .page-card-wrap:hover .page-card__actions {
   opacity: 1;
-}
-
-.page-card__move {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.page-card__move .btn-tiny {
-  padding: 1px 4px;
-  line-height: 1;
-}
-
-.page-card__move .btn-tiny:disabled {
-  opacity: 0.2;
 }
 
 .page-card__delete {
