@@ -170,9 +170,8 @@ export default function BookViewer({
       return sections.join('\n');
     }
 
-    // Flat prompt for diffusion models (Flux, etc.)
+    // Flat prompt for diffusion models (Flux, etc.) — no book concept, just page-specific content
     const parts = [STYLE_HINT_SHORT];
-    if (styleGuide) parts.push(styleGuide);
     if (title) parts.push(title);
     if (characterText) parts.push(characterText);
     if (scenePrompt) parts.push(scenePrompt);
