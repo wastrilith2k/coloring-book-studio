@@ -144,7 +144,9 @@ export default function BookViewer({
     const characterText = pageCharacters[page.id] ?? '';
     const scenePrompt = pagePrompts[page.id] ?? '';
     const sections = [];
-    const styleGuide = [characterGuide, styleText].filter(Boolean).join('\n');
+    // Deduplicate: only include per-page style if it differs from book concept
+    const dedupedStyle = (styleText && styleText !== characterGuide) ? styleText : '';
+    const styleGuide = [characterGuide, dedupedStyle].filter(Boolean).join('\n');
     sections.push(`<style>\n${STYLE_HINT_BASE}\n${NO_TEXT_RULE}\n</style>`);
     if (styleGuide) sections.push(`<style-guide>\n${styleGuide}\n</style-guide>`);
     if (title) sections.push(`<title>\n${title}\n</title>`);
