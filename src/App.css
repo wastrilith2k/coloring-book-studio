@@ -1165,6 +1165,22 @@
   color: var(--text-muted);
 }
 
+.chat-markdown {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-markdown p { margin: 0.4em 0; }
+.chat-markdown p:first-child { margin-top: 0; }
+.chat-markdown p:last-child { margin-bottom: 0; }
+.chat-markdown ul, .chat-markdown ol { margin: 0.4em 0; padding-left: 1.4em; }
+.chat-markdown li { margin: 0.2em 0; }
+.chat-markdown strong { color: var(--text-primary); }
+.chat-markdown code { font-size: 12px; background: var(--bg-deep); padding: 1px 4px; border-radius: 3px; }
+.chat-markdown pre { font-size: 11px; background: var(--bg-deep); padding: 8px; border-radius: var(--radius-md); overflow-x: auto; }
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { font-size: 14px; margin: 0.6em 0 0.3em; }
+.chat-markdown blockquote { border-left: 2px solid var(--accent); padding-left: 8px; margin: 0.4em 0; color: var(--text-secondary); }
+
 .chat-form {
   display: grid;
   grid-template-columns: 1fr auto;

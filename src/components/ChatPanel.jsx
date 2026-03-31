@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Markdown from 'react-markdown';
 import {
   Send,
   Sparkles,
@@ -305,7 +306,7 @@ Help the user refine prompts, suggest new scenes, improve page ideas, or answer 
                 }`}
               >
                 <span className="chat-role">{msg.role}</span>
-                {displayContent ? <p>{displayContent}</p> : null}
+                {displayContent ? <div className="chat-markdown"><Markdown>{displayContent}</Markdown></div> : null}
                 {!displayContent && isLoading && msg.role === 'assistant' && <p>Thinking...</p>}
                 {pages && (
                   <div className="chat-pages-preview">
