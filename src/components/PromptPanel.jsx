@@ -86,15 +86,17 @@ export default function PromptPanel({
       <div className="book-viewer__header">
         <p className="book-viewer__crumb">Workspace &gt; {bookTitle}</p>
         {activePage && !isCover ? (
-          <input
-            className="page-title-input"
-            type="text"
-            value={currentTitle ?? activePage?.title ?? ''}
-            onChange={onTitleChange}
-            onBlur={onTitleBlur}
-            placeholder="Page title..."
-          />
-          <PlacementToggle label="Title in" value={titleIn} onChange={onTitleInChange} />
+          <>
+            <input
+              className="page-title-input"
+              type="text"
+              value={currentTitle ?? activePage?.title ?? ''}
+              onChange={onTitleChange}
+              onBlur={onTitleBlur}
+              placeholder="Page title..."
+            />
+            <PlacementToggle label="Title in" value={titleIn} onChange={onTitleInChange} />
+          </>
         ) : (
           <h2>{activePage?.title ?? 'Select a page'}</h2>
         )}
