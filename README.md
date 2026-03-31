@@ -34,15 +34,24 @@ The app is multi-user with Cognito authentication. The first user to sign up bec
 - **Cover page**: Dedicated cover workflow with auto-generated cover prompt based on book title and tagline
 
 ### Image Generation
-- **Multiple AI models** with a dropdown selector on the generate screen:
-  - **GPT Image Mini** (OpenAI) -- Fast and cheap (~$0.005/image), 1024x1536 portrait
-  - **GPT Image 1** (OpenAI) -- Higher quality (~$0.015/image), 1024x1536 portrait
-  - **Gemini Flash** (Google) -- Multimodal generation (~$0.07/image)
-  - **Gemini 3.1 Flash** (Google) -- Preview model (~$0.07/image)
-- All prompts automatically include a coloring-book style hint: thick clean outlines, no shading, no filled colors, pure white background
+- **Cover model: Gemini 3.1 Flash Preview** (~$0.07/image) -- Full-color cover art with rendered text
+- **Page model: Flux Schnell via fal.ai** (~$0.003/image) -- Fast, clean B&W line art
+- **Prompt optimizer**: An LLM automatically improves prompts before image generation (~$0.0001/call)
+- **Refinement**: After generating, type feedback (e.g., "make the castle bigger") to iterate
+- Text (titles, captions) is never rendered in page images -- added during PDF export only
 - Copyright/safety filter retry: if a prompt is blocked, the system automatically retries with a sanitized version
 - Up to 3 automatic retries on generation failure
 - Images stored in S3 with presigned URLs
+
+#### Model Limitations
+- **Flux Schnell** cannot render text in images. Titles and captions are added during PDF export.
+- **Gemini** can render text and is used for covers where title/tagline text is part of the design.
+- Cover prompts should include text instructions (e.g., "room for title at top"). Page prompts should not.
+- The model selector only appears when multiple models are enabled for the same role (cover/pages).
+
+### Adding Pages to Existing Books
+- **Blank page**: Add an empty page and fill in prompts manually
+- **AI Pages**: Generate multiple new pages at once that complement your existing content. The AI sees all existing pages and creates new ones that fit the book's theme without duplicating.
 
 ### Print Pipeline (300 DPI)
 - When you approve an image, it is automatically **upscaled to 2550x3300px (8.5x11" at 300 DPI)** using Sharp with Lanczos3 resampling
@@ -51,11 +60,17 @@ The app is multi-user with Cognito authentication. The first user to sign up bec
 - Original generation kept for fast browsing; print version used in downloads
 
 ### KDP Export
-The download modal offers three options, each tailored for Amazon KDP:
+The download modal offers four options:
 
-- **KDP Interior PDF** -- All coloring pages (no cover) in an 8.5x11" PDF at 300 DPI. Upload directly as KDP manuscript interior. Pages fill the full trim area.
+- **KDP Interior PDF** -- All coloring pages (no cover) in an 8.5x11" PDF at 300 DPI. Upload directly as KDP manuscript interior.
 - **KDP Cover PDF** -- Front cover as a single-page PDF. KDP requires covers uploaded separately.
-- **Images ZIP** -- All approved images as individual 300 DPI PNGs for manual arrangement or use outside KDP.
+- **Complete Book PDF** -- Cover + all pages in a single PDF for digital sales or sharing.
+- **Images ZIP** -- All approved images as individual 300 DPI PNGs.
+
+Additional export options:
+- **Bleed-through protection**: Insert solid black pages between coloring pages to prevent marker bleed-through (on by default).
+- **Page titles and captions**: Automatically overlaid in the PDF -- title above each image, caption below.
+- **KDP page minimum**: KDP requires 24+ interior pages. The app warns when your page count (including bleed-through pages) falls below this threshold.
 
 ### AI Chat Assistant
 - Streaming chat via WebSocket (falls back to HTTP if WebSocket unavailable)

@@ -16,6 +16,7 @@ export default function PromptPanel({
   onStyleChange,
   onStyleBlur,
   onStyleReset,
+  onStyleApplyAll,
   styleSaving,
   styleError,
   // Character
@@ -145,6 +146,11 @@ export default function PromptPanel({
                     </button>
                   )}
                 </>
+              )}
+              {onStyleApplyAll && currentStyle && (
+                <button className="btn ghost prompt-field__reset" onClick={onStyleApplyAll}>
+                  Apply this style to all pages
+                </button>
               )}
             </div>
             {styleError && <div className="book-viewer__alert">{styleError}</div>}

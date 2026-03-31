@@ -74,16 +74,25 @@ export const handler = async (event) => {
     // POST /api/ideas
     if (path === '/api/ideas' && method === 'POST') {
       const { chatCompletion } = await import('../lib/openrouter.js');
-      const { theme = '', audience = 'kids', length = 8 } = body;
+      const { theme = '', audience = 'kids', length = 8, existingPages = [] } = body;
 
       // Validate and clamp length
       const sceneCount = Math.max(1, Math.min(50, Number(length) || 20));
 
-      const systemPrompt = 'You are a coloring book planner. Propose a book concept and page scenes. Respond in JSON with keys: title, tagLine, concept, pages (array of {title, scene, prompt, caption}). "scene" is a short 1-sentence description of the page for display. "prompt" is a detailed image-generation prompt describing the illustration (subjects, composition, details). "caption" is a short fun activity instruction printed below the image (e.g. "Color the dragon and count its scales!"). Keep prompts coloring-book friendly.';
+      const hasExisting = existingPages.length > 0;
+      const systemPrompt = hasExisting
+        ? `You are a coloring book planner. The book already has ${existingPages.length} pages. Generate ${sceneCount} NEW additional pages that complement the existing ones without duplicating them. Respond in JSON with key: pages (array of {title, scene, prompt, caption}). "scene" is a short 1-sentence description. "prompt" is a detailed image-generation prompt. "caption" is a fun activity instruction. Keep prompts coloring-book friendly and consistent with the existing pages.`
+        : 'You are a coloring book planner. Propose a book concept and page scenes. Respond in JSON with keys: title, tagLine, concept, pages (array of {title, scene, prompt, caption}). "scene" is a short 1-sentence description of the page for display. "prompt" is a detailed image-generation prompt describing the illustration (subjects, composition, details). "caption" is a short fun activity instruction printed below the image (e.g. "Color the dragon and count its scales!"). Keep prompts coloring-book friendly.';
+
+      const existingList = hasExisting
+        ? existingPages.map((p, i) => `${i + 1}. ${p.title}: ${p.scene}`).join('\n')
+        : '';
+
       const messages = [
         { role: 'system', content: systemPrompt },
         theme ? { role: 'user', content: `Theme: ${String(theme).slice(0, 500)}` } : null,
-        { role: 'user', content: `Audience: ${String(audience).slice(0, 100)}. Scenes: ${sceneCount}.` },
+        hasExisting ? { role: 'user', content: `Existing pages:\n${existingList}\n\nGenerate ${sceneCount} new pages.` } : null,
+        { role: 'user', content: `Audience: ${String(audience).slice(0, 100)}. ${hasExisting ? '' : `Scenes: ${sceneCount}.`}` },
       ].filter(Boolean);
       const text = await chatCompletion(messages);
       let parsed;

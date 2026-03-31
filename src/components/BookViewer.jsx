@@ -302,6 +302,51 @@ export default function BookViewer({
     }
   };
 
+  const [addPagesCount, setAddPagesCount] = useState(5);
+  const [addingPages, setAddingPages] = useState(false);
+  const [showAddPages, setShowAddPages] = useState(false);
+
+  const handleAddAiPages = async () => {
+    if (!bookId || addingPages) return;
+    setAddingPages(true);
+    setGenError(null);
+    try {
+      const existingPages = pages.map(p => ({ title: pageTitles[p.id] || p.title, scene: pagePrompts[p.id] || p.scene }));
+      const res = await apiFetch('/api/ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: characterGuide,
+          length: addPagesCount,
+          audience: 'kids',
+          existingPages,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to generate ideas');
+      const idea = data.idea || data;
+      const newPages = (idea.pages || []).map(p => ({
+        title: p.title || '',
+        scene: p.scene || '',
+        prompt: p.prompt || p.scene || '',
+        caption: p.caption || '',
+        characterStyle: characterGuide,
+      }));
+      if (!newPages.length) throw new Error('No pages generated');
+      const addRes = await apiFetch(`/api/books/${bookId}/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages: newPages }),
+      });
+      if (!addRes.ok) throw new Error('Failed to add pages');
+      setShowAddPages(false);
+      if (typeof onPagesChanged === 'function') onPagesChanged();
+    } catch (e) {
+      setGenError(e.message);
+    }
+    setAddingPages(false);
+  };
+
   const handleDeletePage = async (pageId) => {
     if (!pageId || !bookId) return;
     try {
@@ -576,6 +621,27 @@ export default function BookViewer({
           )}
         </div>
 
+        {showAddPages && (
+          <div className="add-pages-panel">
+            <div className="add-pages-panel__header">
+              <strong>Generate more pages</strong>
+              <button className="btn-tiny" onClick={() => setShowAddPages(false)}>Cancel</button>
+            </div>
+            <p className="add-pages-panel__desc">AI will generate new pages consistent with your existing {pages.length} pages.</p>
+            <div className="add-pages-panel__row">
+              <label>How many?</label>
+              <div className="page-count-picker page-count-picker--sm">
+                <button className="page-count-btn" onClick={() => setAddPagesCount(c => Math.max(1, c - 1))} disabled={addPagesCount <= 1}>-</button>
+                <input className="page-count-input" type="number" min={1} max={30} value={addPagesCount} onChange={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) setAddPagesCount(Math.max(1, Math.min(30, v))); }} />
+                <button className="page-count-btn" onClick={() => setAddPagesCount(c => Math.min(30, c + 1))} disabled={addPagesCount >= 30}>+</button>
+              </div>
+            </div>
+            <button className="btn primary" onClick={handleAddAiPages} disabled={addingPages} style={{ width: '100%' }}>
+              {addingPages ? 'Generating...' : `Generate ${addPagesCount} page${addPagesCount === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        )}
+
         <PageList
           navPages={navPages}
           activePage={activePage}
@@ -584,6 +650,7 @@ export default function BookViewer({
           approvedUrlForPage={approvedUrlForPage}
           pageTitles={pageTitles}
           onAddPage={handleAddPage}
+          onAddAiPages={() => setShowAddPages(s => !s)}
           onDeletePage={handleDeletePage}
         />
       </aside>
@@ -601,6 +668,17 @@ export default function BookViewer({
             onStyleChange={handleStyleChange}
             onStyleBlur={handleStyleBlur}
             onStyleReset={() => { if (activePage && characterGuide) { setPageStyles(p => ({ ...p, [activePage.id]: characterGuide })); saveField('style', characterGuide, { characterStyle: characterGuide }); } }}
+            onStyleApplyAll={async () => {
+              if (!activePage || isCover) return;
+              const style = pageStyles[activePage.id] ?? '';
+              if (!style) return;
+              const updated = {};
+              for (const p of pages) {
+                updated[p.id] = style;
+                try { await apiFetch(`/api/pages/${p.id}`, { method: 'PUT', body: JSON.stringify({ characterStyle: style }) }); } catch { /* best effort */ }
+              }
+              setPageStyles(prev => ({ ...prev, ...updated }));
+            }}
             styleSaving={currentState.styleSaving}
             styleError={styleError}
             currentCharacter={activePage && !isCover ? pageCharacters[activePage.id] ?? '' : ''}

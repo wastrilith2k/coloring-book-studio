@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Plus, Sparkles, Trash2 } from 'lucide-react';
 
-export default function PageList({ navPages, activePage, setActivePage, pageState, approvedUrlForPage, pageTitles, onAddPage, onDeletePage }) {
+export default function PageList({ navPages, activePage, setActivePage, pageState, approvedUrlForPage, pageTitles, onAddPage, onAddAiPages, onDeletePage }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   return (
@@ -58,12 +58,20 @@ export default function PageList({ navPages, activePage, setActivePage, pageStat
           </div>
         );
       })}
-      {onAddPage && (
-        <button className="page-card page-card--add" onClick={onAddPage}>
-          <Plus size={18} />
-          <span>Add Page</span>
-        </button>
-      )}
+      <div className="page-card__add-group">
+        {onAddPage && (
+          <button className="page-card page-card--add" onClick={onAddPage}>
+            <Plus size={18} />
+            <span>Blank Page</span>
+          </button>
+        )}
+        {onAddAiPages && (
+          <button className="page-card page-card--add page-card--ai" onClick={onAddAiPages}>
+            <Sparkles size={18} />
+            <span>AI Pages</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
