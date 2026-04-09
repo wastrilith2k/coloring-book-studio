@@ -29,17 +29,22 @@ import './App.css';
 const HASH_KEY = 'book';
 
 const readHash = () => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return { book: null, page: null };
   const hash = window.location.hash.replace(/^#/, '');
-  if (!hash) return null;
+  if (!hash) return { book: null, page: null };
   const params = new URLSearchParams(hash);
-  return params.get(HASH_KEY);
+  return { book: params.get(HASH_KEY), page: params.get('page') };
 };
 
-const writeHash = bookId => {
+const writeHash = (bookId, pageId) => {
   if (typeof window === 'undefined' || !bookId) return;
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   params.set(HASH_KEY, bookId);
+  if (pageId) {
+    params.set('page', pageId);
+  } else {
+    params.delete('page');
+  }
   const nextHash = params.toString();
   if (window.location.hash.replace(/^#/, '') !== nextHash) {
     window.location.hash = nextHash;
@@ -306,7 +311,7 @@ function Wizard({ onBookCreated }) {
       const res = await apiFetch('/api/books', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(concept),
+        body: JSON.stringify({ ...concept, audience }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to save book');
@@ -587,7 +592,9 @@ function TopBar({ books, activeId, setActiveId, user, signOut, onNewBook, onDele
 
 export default function App({ signOut, user }) {
   const [books, setBooks] = useState([]);
-  const [activeId, setActiveId] = useState(() => readHash());
+  const [initialHash] = useState(() => readHash());
+  const [activeId, setActiveId] = useState(() => initialHash.book);
+  const [initialPageId] = useState(() => initialHash.page);
   const [bookData, setBookData] = useState(null);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [, setLoadingBook] = useState(false);
@@ -678,15 +685,15 @@ export default function App({ signOut, user }) {
 
   useEffect(() => {
     const onHashChange = () => {
-      const next = readHash();
-      if (next) setActiveId(next);
+      const { book } = readHash();
+      if (book) setActiveId(book);
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [books]);
 
   useEffect(() => {
-    if (activeId) writeHash(activeId);
+    if (activeId) writeHash(activeId, null);
   }, [activeId]);
 
   useEffect(() => {
@@ -780,8 +787,11 @@ export default function App({ signOut, user }) {
                   bookTitle={bookData?.title || activeBook.title}
                   tagLine={bookData?.tagLine || ''}
                   bookNotes={bookData?.notes || ''}
+                  audience={bookData?.audience || ''}
+                  initialPageId={initialPageId}
                   onPagesChanged={() => fetchBook(activeId)}
                   onPageNav={() => setShowLibrary(false)}
+                  onActivePageChange={pageId => writeHash(activeId, pageId)}
                 />
               </div>
             </div>

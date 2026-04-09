@@ -71,6 +71,7 @@ export default function PromptPanel({
   // Prompt preview
   assembledPrompt,
   lastOptimizedPrompt,
+  promptCached,
   // Errors
   imageError,
   genError,
@@ -138,7 +139,7 @@ export default function PromptPanel({
                 </div>
                 {lastOptimizedPrompt && (
                   <div className="prompt-preview__section">
-                    <span className="prompt-preview__label">Last optimized prompt (sent to model)</span>
+                    <span className="prompt-preview__label">Last optimized prompt (sent to model){promptCached ? ' [cached]' : ''}</span>
                     <pre className="prompt-preview__code">{lastOptimizedPrompt}</pre>
                   </div>
                 )}
@@ -271,7 +272,7 @@ export default function PromptPanel({
                 </div>
                 {lastOptimizedPrompt && (
                   <div className="prompt-preview__section">
-                    <span className="prompt-preview__label">Last optimized prompt (sent to model)</span>
+                    <span className="prompt-preview__label">Last optimized prompt (sent to model){promptCached ? ' [cached]' : ''}</span>
                     <pre className="prompt-preview__code">{lastOptimizedPrompt}</pre>
                   </div>
                 )}

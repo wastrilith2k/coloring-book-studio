@@ -74,6 +74,12 @@ function init() {
   } catch {
     // ignore if column already exists
   }
+
+  try {
+    db.exec("ALTER TABLE pages ADD COLUMN optimized_prompt TEXT DEFAULT NULL");
+  } catch {
+    // ignore if column already exists
+  }
 }
 
 init();

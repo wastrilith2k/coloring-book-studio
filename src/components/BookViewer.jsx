@@ -6,12 +6,38 @@ import ImageCarousel from './ImageCarousel.jsx';
 import PromptPanel from './PromptPanel.jsx';
 import BundleConfirmModal from './BundleConfirmModal.jsx';
 
-const STYLE_HINT = `**Style:** Professional black-and-white UNCOLORED coloring book illustration for children ages 4–10.
-- **Line work:** Thick, confident outlines (2–3pt weight). Clean, fully closed shapes. No crosshatching, no stippling, no shading, no gray fills, no gradients, no solid black areas.
+const AUDIENCE_STYLES = {
+  toddlers: {
+    age: 'toddlers ages 2–4',
+    lineWork: 'Extra thick, bold outlines (3–4pt weight). Very simple, fully closed shapes. No crosshatching, no stippling, no shading, no gray fills, no gradients, no solid black areas.',
+    look: 'Extremely simple, chunky, rounded shapes. Very large areas to color in. Minimal detail.',
+  },
+  kids: {
+    age: 'children ages 5–8',
+    lineWork: 'Thick, confident outlines (2–3pt weight). Clean, fully closed shapes. No crosshatching, no stippling, no shading, no gray fills, no gradients, no solid black areas.',
+    look: 'Friendly, rounded, slightly cartoonish. Large areas to color in.',
+  },
+  tweens: {
+    age: 'tweens ages 9–12',
+    lineWork: 'Medium-weight outlines (1.5–2pt weight). Clean, closed shapes with moderate detail. No shading, no gray fills, no gradients, no solid black areas.',
+    look: 'Semi-detailed with patterns and textures. Medium-sized areas to color. More realistic proportions.',
+  },
+  adults: {
+    age: 'teens and adults',
+    lineWork: 'Fine, precise outlines (1–1.5pt weight). Intricate, closed shapes with high detail. No shading, no gray fills, no gradients, no solid black areas.',
+    look: 'Intricate, detailed, meditative designs. Fine areas and patterns to color. Realistic or ornate style.',
+  },
+};
+
+const buildStyleHint = (audience) => {
+  const style = AUDIENCE_STYLES[audience] || AUDIENCE_STYLES.kids;
+  return `**Style:** Professional black-and-white UNCOLORED coloring book illustration for ${style.age}.
+- **Line work:** ${style.lineWork}
 - **Composition:** Single centered scene, clear foreground subject, simple background. Generous white space. Portrait orientation.
-- **Look:** Friendly, rounded, slightly cartoonish. Large areas to color in.
+- **Look:** ${style.look}
 - **Background:** Pure white. No fills anywhere.
 - **Output:** High-contrast black lines on white, 8.5×11 inches.`;
+};
 
 const NO_TEXT_HINT = '- **Text:** Do NOT include any text, titles, labels, or words in the image.';
 const INCLUDE_TITLE_HINT = (title) => `- **Title:** Render "${title}" as stylized text at the top of the image.`;
@@ -38,8 +64,11 @@ export default function BookViewer({
   bookTitle = 'Book',
   tagLine = '',
   bookNotes: initialBookNotes = '',
+  audience = '',
+  initialPageId = null,
   onPagesChanged,
   onPageNav,
+  onActivePageChange,
 }) {
   const pages = useMemo(
     () => (storyPages && storyPages.length ? storyPages : []),
@@ -131,7 +160,11 @@ export default function BookViewer({
     setPageNotes(n);
     setPageTitles(t);
     setBookNotes(initialBookNotes);
-    setActivePage(navPages[0] ?? null);
+    // Restore page from URL if available, otherwise default to first page
+    const restoredPage = initialPageId
+      ? (initialPageId === 'cover' ? coverPage : navPages.find(p => `${p.id}` === `${initialPageId}`))
+      : null;
+    setActivePage(restoredPage || (navPages[0] ?? null));
     setPageState({});
     setStyleError('');
     setPromptError('');
@@ -164,7 +197,7 @@ export default function BookViewer({
     const captionIn = pageCaptionIn[page.id] ?? 'pdf';
     const dedupedStyle = (styleText && styleText !== characterGuide) ? styleText : '';
 
-    const lines = [STYLE_HINT];
+    const lines = [buildStyleHint(audience)];
 
     // Text placement rules
     const textRules = [];
@@ -235,7 +268,11 @@ export default function BookViewer({
   };
 
   useEffect(() => {
-    if (activePage) { loadImages(activePage); setCarouselIdx(0); }
+    if (activePage) {
+      loadImages(activePage);
+      setCarouselIdx(0);
+      onActivePageChange?.(activePage.isCover ? 'cover' : activePage.id);
+    }
   }, [activePage]);
 
   // --- Save handlers ---
@@ -405,6 +442,7 @@ export default function BookViewer({
 
   // --- Image generation with prompt preview ---
   const [lastOptimizedPrompt, setLastOptimizedPrompt] = useState('');
+  const [promptCached, setPromptCached] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null); // { prompt, modelId, isCover, feedback }
   const [optimizing, setOptimizing] = useState(false);
 
@@ -412,16 +450,28 @@ export default function BookViewer({
   const requestGeneration = async (refinementFeedback) => {
     if (!prompt || !activePage) return;
     const feedback = typeof refinementFeedback === 'string' ? refinementFeedback : undefined;
+    // Navigate to the generate slide so the user can see the optimizing/pending prompt
+    const generateIdx = currentAttempts.length + (currentState.preview ? 1 : 0);
+    setCarouselIdx(generateIdx);
     setOptimizing(true);
     setGenError(null);
     try {
-      const reqBody = { prompt, modelId: effectiveModelId, isCover, previewOnly: true };
+      const pageIdx = pages.findIndex(p => p.id === activePage.id);
+      const reqBody = {
+        prompt, modelId: effectiveModelId, isCover, previewOnly: true,
+        characterStyle: characterGuide || '',
+        bookTitle: bookTitle || '',
+        pageNumber: pageIdx >= 0 ? pageIdx + 1 : undefined,
+        totalPages: pages.length,
+        ...(!isCover && activePage.id ? { pageId: activePage.id } : {}),
+      };
       if (feedback) reqBody.refinementFeedback = feedback;
       const res = await apiFetch('/api/generate-image', { method: 'POST', body: JSON.stringify(reqBody) });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Status ${res.status}`); }
       const data = await res.json();
       const optimized = data.optimizedPrompt || prompt;
       setLastOptimizedPrompt(optimized);
+      setPromptCached(!!data.cached);
       setPendingPrompt({ prompt: optimized, modelId: effectiveModelId, isCover });
     } catch (e) {
       setGenError(`Prompt optimization failed: ${e.message}`);
@@ -485,7 +535,14 @@ export default function BookViewer({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed');
       const updated = { ...data.image, approved: !!data.image?.approved };
-      updatePageState(activePage.id, prev => ({ attempts: (prev.attempts || []).map(a => a.id === updated.id ? { ...a, approved: updated.approved } : a), selectedId: updated.id }));
+      updatePageState(activePage.id, prev => ({
+        attempts: (prev.attempts || []).map(a =>
+          a.id === updated.id
+            ? { ...a, approved: updated.approved }
+            : updated.approved ? { ...a, approved: false } : a
+        ),
+        selectedId: updated.id,
+      }));
     } catch (e) { setImageError(e.message); }
   };
 
@@ -775,6 +832,7 @@ export default function BookViewer({
             aiGenerating={aiGenerating}
             assembledPrompt={prompt}
             lastOptimizedPrompt={lastOptimizedPrompt}
+            promptCached={promptCached}
             imageError={imageError}
             genError={genError}
           />

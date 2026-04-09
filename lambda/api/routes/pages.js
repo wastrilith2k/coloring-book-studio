@@ -57,6 +57,15 @@ export const handlePages = async (ctx) => {
       const attempt = await getImageAttempt(imageId);
       if (!attempt || Number(attempt.page_id) !== pageId) return json(404, { error: 'image not found' }, origin);
       const { approved = true } = body;
+      // Deselect all other approved images for this page before approving
+      if (approved) {
+        const allAttempts = await listImageAttempts(pageId);
+        for (const a of allAttempts) {
+          if (a.approved && a.id !== imageId) {
+            await updateImageApproval(a.id, false);
+          }
+        }
+      }
       const updated = await updateImageApproval(imageId, approved);
       if (approved) {
         // Upscale to print resolution if not already done

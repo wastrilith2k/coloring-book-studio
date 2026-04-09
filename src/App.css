@@ -136,9 +136,10 @@
 
 /* ---------- App Shell ---------- */
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background:
     radial-gradient(ellipse at 20% 0%, var(--gradient-tint-1), transparent 60%),
     radial-gradient(ellipse at 80% 100%, var(--gradient-tint-2), transparent 60%),

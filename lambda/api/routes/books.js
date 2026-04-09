@@ -82,6 +82,15 @@ export const handleBooks = async (ctx) => {
       const attempt = await getCoverAttempt(imageId);
       if (!attempt || Number(attempt.book_id) !== bookId) return json(404, { error: 'image not found' }, origin);
       const { approved = true } = body;
+      // Deselect all other approved covers before approving
+      if (approved) {
+        const allCovers = await listCoverAttempts(bookId);
+        for (const a of allCovers) {
+          if (a.approved && a.id !== imageId) {
+            await updateCoverApproval(a.id, false);
+          }
+        }
+      }
       const updated = await updateCoverApproval(imageId, approved);
       if (approved) {
         // Upscale to print resolution if not already done
@@ -234,9 +243,9 @@ export const handleBooks = async (ctx) => {
 
   // --- POST /api/books ---
   if (!bookId && !rest && method === 'POST') {
-    const { title, concept = '', tagLine = '', pages = [] } = body;
+    const { title, concept = '', tagLine = '', audience = '', pages = [] } = body;
     if (!title) return json(400, { error: 'title is required' }, origin);
-    const book = await insertBook(userId, { title, concept, tagLine });
+    const book = await insertBook(userId, { title, concept, tagLine, audience });
     if (pages.length) {
       await insertPages(book.id, pages);
     }

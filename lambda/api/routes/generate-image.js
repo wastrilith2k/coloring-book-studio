@@ -1,5 +1,5 @@
 import { json } from '../../lib/cors.js';
-import { logGeneration, getAdminSetting } from '../../lib/db.js';
+import { logGeneration, getAdminSetting, getPage, updatePage } from '../../lib/db.js';
 import { evaluatePrompt } from '../../lib/prompt-evaluator.js';
 
 // --- Provider: Gemini ---
@@ -201,7 +201,7 @@ const PROVIDER_MAP = {
 
 export const handleGenerateImage = async (ctx) => {
   const { body, origin, userId, userEmail } = ctx;
-  const { prompt, modelId, refinementFeedback, isCover, previewOnly, skipEvaluator } = body;
+  const { prompt, modelId, refinementFeedback, isCover, previewOnly, skipEvaluator, characterStyle, bookTitle, pageNumber, totalPages, pageId } = body;
 
   if (!prompt || typeof prompt !== 'string') {
     return json(400, { error: 'prompt is required' }, origin);
@@ -220,21 +220,47 @@ export const handleGenerateImage = async (ctx) => {
   const provider = PROVIDER_MAP[resolvedModelId] || 'openai';
   const modelInfo = ALL_MODELS.find(m => m.id === resolvedModelId);
 
-  // Evaluate/optimize prompt via LLM
+  // Evaluate/optimize prompt via LLM (with caching)
   let finalPrompt = prompt;
   let optimizedPrompt = null;
+  let cached = false;
   if (!skipEvaluator) {
     const evaluatorEnabled = (await getAdminSetting('prompt_evaluator_enabled')) !== false;
     const shouldEvaluate = evaluatorEnabled || refinementFeedback;
-    if (shouldEvaluate) {
+
+    // Check for cached optimized_prompt (skip cache if refinement feedback provided)
+    if (shouldEvaluate && pageId && !refinementFeedback && !isCover) {
       try {
-        const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover });
+        const pageRow = await getPage(pageId);
+        if (pageRow?.optimized_prompt) {
+          finalPrompt = pageRow.optimized_prompt;
+          optimizedPrompt = pageRow.optimized_prompt;
+          cached = true;
+          console.log(`[generate-image] Using cached optimized_prompt for page ${pageId}`);
+        }
+      } catch (e) {
+        console.error('Failed to check cached prompt:', e.message);
+      }
+    }
+
+    if (shouldEvaluate && !cached) {
+      try {
+        const evalResult = await evaluatePrompt(prompt, { refinementFeedback, isCover: !!isCover, characterStyle, bookTitle, pageNumber, totalPages });
         finalPrompt = evalResult.optimizedPrompt || prompt;
         optimizedPrompt = finalPrompt;
         try {
           await logGeneration(userId, 'prompt-evaluator', 0.01, userEmail);
         } catch (e) {
           console.error('Failed to log evaluator cost:', e.message);
+        }
+        // Cache the optimized prompt on the page record
+        if (pageId && !isCover && optimizedPrompt) {
+          try {
+            await updatePage(pageId, { optimizedPrompt });
+            console.log(`[generate-image] Cached optimized_prompt for page ${pageId}`);
+          } catch (e) {
+            console.error('Failed to cache optimized prompt:', e.message);
+          }
         }
       } catch (e) {
         console.error('Prompt evaluator failed, using original prompt:', e.message);
@@ -244,7 +270,7 @@ export const handleGenerateImage = async (ctx) => {
 
   // Preview mode: return optimized prompt without generating
   if (previewOnly) {
-    return json(200, { optimizedPrompt: optimizedPrompt || prompt }, origin);
+    return json(200, { optimizedPrompt: optimizedPrompt || prompt, cached }, origin);
   }
 
   console.log(`[generate-image] provider=${provider}, model=${resolvedModelId}, prompt length=${finalPrompt.length}`);

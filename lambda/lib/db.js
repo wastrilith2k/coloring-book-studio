@@ -31,6 +31,8 @@ export const ensureSchema = async () => {
     "ALTER TABLE pages ADD COLUMN text_in_image INTEGER DEFAULT 0",
     "ALTER TABLE pages ADD COLUMN title_in TEXT DEFAULT 'pdf'",
     "ALTER TABLE pages ADD COLUMN caption_in TEXT DEFAULT 'pdf'",
+    "ALTER TABLE books ADD COLUMN audience TEXT DEFAULT ''",
+    "ALTER TABLE pages ADD COLUMN optimized_prompt TEXT DEFAULT NULL",
   ];
   for (const sql of migrations) {
     try { await db.execute(sql); } catch { /* column already exists */ }
@@ -145,11 +147,11 @@ export const getBookWithPages = async (id, userId) => {
   return { ...book, pages };
 };
 
-export const insertBook = async (userId, { title, concept = '', tagLine = '' }) => {
+export const insertBook = async (userId, { title, concept = '', tagLine = '', audience = '' }) => {
   const db = getDb();
   const { lastInsertRowid } = await db.execute({
-    sql: 'INSERT INTO books (user_id, title, concept, tagLine, cover_url) VALUES (?, ?, ?, ?, ?)',
-    args: [userId, title, concept, tagLine, ''],
+    sql: 'INSERT INTO books (user_id, title, concept, tagLine, cover_url, audience) VALUES (?, ?, ?, ?, ?, ?)',
+    args: [userId, title, concept, tagLine, '', audience],
   });
   return getBookWithPages(lastInsertRowid, userId);
 };
@@ -352,8 +354,23 @@ export const getPage = async (id) => {
   return rows[0] || null;
 };
 
-export const updatePage = async (id, { title, scene, prompt, characterStyle, characterDesc, imageUrl, sortOrder, caption, notes, textInImage, titleIn, captionIn }) => {
+export const updatePage = async (id, { title, scene, prompt, characterStyle, characterDesc, imageUrl, sortOrder, caption, notes, textInImage, titleIn, captionIn, optimizedPrompt }) => {
   const db = getDb();
+  // Invalidate cached optimized_prompt when prompt-affecting fields change
+  const invalidateCache = (prompt !== undefined && prompt !== null) ||
+    (scene !== undefined && scene !== null) ||
+    (characterStyle !== undefined && characterStyle !== null);
+  // Determine optimized_prompt value:
+  //  - invalidateCache: clear it (set NULL)
+  //  - explicit optimizedPrompt provided: set it
+  //  - otherwise: keep existing (use COALESCE trick with sentinel)
+  const useExplicitOptimized = invalidateCache || optimizedPrompt !== undefined;
+  const optimizedVal = invalidateCache ? null : (optimizedPrompt ?? null);
+  const optimizedSql = useExplicitOptimized
+    ? 'optimized_prompt = ?'
+    : 'optimized_prompt = optimized_prompt';
+  const baseArgs = [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, characterDesc ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, textInImage ?? null, titleIn ?? null, captionIn ?? null];
+  const args = useExplicitOptimized ? [...baseArgs, optimizedVal, id] : [...baseArgs, id];
   await db.execute({
     sql: `UPDATE pages SET
       title = COALESCE(?, title),
@@ -367,9 +384,10 @@ export const updatePage = async (id, { title, scene, prompt, characterStyle, cha
       notes = COALESCE(?, notes),
       text_in_image = COALESCE(?, text_in_image),
       title_in = COALESCE(?, title_in),
-      caption_in = COALESCE(?, caption_in)
+      caption_in = COALESCE(?, caption_in),
+      ${optimizedSql}
     WHERE id = ?`,
-    args: [title ?? null, scene ?? null, prompt ?? null, characterStyle ?? null, characterDesc ?? null, imageUrl ?? null, sortOrder ?? null, caption ?? null, notes ?? null, textInImage ?? null, titleIn ?? null, captionIn ?? null, id],
+    args,
   });
   const { rows } = await db.execute({
     sql: 'SELECT * FROM pages WHERE id = ?',
