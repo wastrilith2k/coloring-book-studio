@@ -40,3 +40,4 @@ infra/node_modules
 
 # Lambda build
 lambda/node_modules
+.superpowers/

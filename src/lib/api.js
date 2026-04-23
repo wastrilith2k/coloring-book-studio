@@ -1,20 +1,10 @@
-import { fetchAuthSession } from '@aws-amplify/auth';
+import { getIdToken } from './auth/index.js';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8788';
 const WS_URL = import.meta.env.VITE_WS_URL || '';
 
 /**
- * Get the current user's ID token for API authorization.
- */
-export const getIdToken = async () => {
-  const session = await fetchAuthSession();
-  const token = session.tokens?.idToken?.toString();
-  if (!token) throw new Error('Not authenticated');
-  return token;
-};
-
-/**
- * Authenticated fetch wrapper that attaches the Cognito ID token.
+ * Authenticated fetch wrapper. Attaches the current adapter's bearer token.
  */
 export const apiFetch = async (path, options = {}) => {
   const token = await getIdToken();
@@ -32,6 +22,8 @@ export const apiFetch = async (path, options = {}) => {
 
 /**
  * WebSocket connection manager with reconnect logic.
+ * Only used in Cognito mode against the API Gateway WebSocket route — the
+ * self-hosted Express server uses POST /api/chat streaming instead.
  */
 export class ChatWebSocket {
   constructor() {
@@ -43,6 +35,7 @@ export class ChatWebSocket {
   }
 
   async connect() {
+    if (!WS_URL) throw new Error('WebSocket chat is not configured (no VITE_WS_URL)');
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     const token = await getIdToken();
@@ -50,30 +43,17 @@ export class ChatWebSocket {
 
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        this.reconnectAttempts = 0;
-        resolve();
-      };
-
+      this.ws.onopen = () => { this.reconnectAttempts = 0; resolve(); };
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           const handlers = this.listeners.get(data.type) || [];
           handlers.forEach(fn => fn(data));
-        } catch {
-          // ignore parse errors
-        }
+        } catch { /* ignore parse errors */ }
       };
-
-      this.ws.onclose = () => {
-        this._scheduleReconnect();
-      };
-
+      this.ws.onclose = () => this._scheduleReconnect();
       this.ws.onerror = (err) => {
-        if (this.ws?.readyState !== WebSocket.OPEN) {
-          reject(err);
-        }
+        if (this.ws?.readyState !== WebSocket.OPEN) reject(err);
       };
     });
   }
@@ -103,11 +83,10 @@ export class ChatWebSocket {
 
   disconnect() {
     clearTimeout(this.reconnectTimer);
-    this.maxReconnectAttempts = 0; // prevent reconnect
+    this.maxReconnectAttempts = 0;
     this.ws?.close();
     this.ws = null;
   }
 }
 
-// Singleton WebSocket instance
 export const chatWs = new ChatWebSocket();

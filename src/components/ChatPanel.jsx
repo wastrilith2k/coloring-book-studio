@@ -205,12 +205,32 @@ Help the user refine prompts, suggest new scenes, improve page ideas, or answer 
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `Chat failed (${res.status})`);
         }
-        const data = await res.json();
-        const text = data.content || '';
+        // Server streams plain text; read progressively so the bubble
+        // updates as chunks arrive.
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let acc = '';
+        if (reader) {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            acc += decoder.decode(value, { stream: true });
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.role === 'assistant' && last._streaming) {
+                return [...prev.slice(0, -1), { ...last, content: acc }];
+              }
+              return prev;
+            });
+          }
+        } else {
+          acc = await res.text();
+        }
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.role === 'assistant' && last._streaming) {
-            return [...prev.slice(0, -1), { ...last, content: text, _streaming: undefined }];
+            const { _streaming, ...clean } = last;
+            return [...prev.slice(0, -1), { ...clean, content: acc }];
           }
           return prev;
         });

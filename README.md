@@ -198,6 +198,71 @@ npm run dev
 
 The frontend dev server runs at `http://localhost:5173` and connects to your deployed API Gateway endpoints configured in `.env`.
 
+## Self-Hosted Mode (no AWS)
+
+Coloring Book Studio can also run entirely on your own machine or VPS without AWS. In this mode there is no Cognito, no S3, and no Lambda — just an Express server using local SQLite and the local filesystem for image storage. Self-host is **single-admin** by design (one login, configured via env vars).
+
+### Self-host setup
+
+1. **Install deps** (same as above):
+   ```bash
+   npm install
+   ```
+
+2. **Create a `.env` for the server:**
+   ```bash
+   AUTH_SECRET=<run: openssl rand -hex 32>
+   ADMIN_EMAIL=you@example.com
+   ADMIN_PASSWORD=<your password>          # hashed in-memory at startup
+   # ...or use a pre-computed bcrypt hash instead:
+   # ADMIN_PASSWORD_HASH=$2a$10$...
+
+   GEMINI_API_KEY=<key>                    # for chat + Gemini image gen
+   OPENAI_API_KEY=<key>                    # optional, for GPT Image
+   FAL_API_KEY=<key>                       # optional, for Flux
+   OPENROUTER_API_KEY=<key>                # for the prompt evaluator
+
+   PORT=8788                               # default
+   PUBLIC_BASE_URL=http://localhost:8788   # used in upload URLs; set to your domain in prod
+   SQLITE_PATH=server/data.db              # default
+   UPLOADS_DIR=server/uploads              # default
+   ```
+
+3. **Build the frontend in local mode** so Amplify is tree-shaken out:
+   ```bash
+   echo 'VITE_AUTH_MODE=local' > .env.local
+   echo 'VITE_API_URL=http://localhost:8788' >> .env.local
+   npm run build
+   ```
+
+4. **Start the server:**
+   ```bash
+   npm run start:server          # production
+   # or:
+   npm run dev:server            # auto-reload on changes
+   ```
+
+5. Open `http://localhost:8788` (or serve `dist/` separately and point `VITE_API_URL` at the server). Sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+### Self-host vs AWS — what's different
+
+| Feature                | AWS mode                          | Self-host mode                      |
+|------------------------|-----------------------------------|-------------------------------------|
+| Auth                   | Cognito (multi-user, social)      | Single admin login (JWT)            |
+| Image storage          | S3                                | `server/uploads/` (local fs)        |
+| Database               | Turso (libSQL)                    | SQLite via better-sqlite3           |
+| Streaming chat         | API Gateway WebSocket             | HTTP `text/plain` streaming         |
+| Cost tracking          | Per-user, in `generation_log`     | Single user, in `generation_log`    |
+| Admin panel            | First user becomes admin          | The configured admin always         |
+
+### Self-host scripts
+
+```bash
+npm run start:server      # production server
+npm run dev:server        # auto-reload server (node --watch)
+npm run test:server       # run server smoke tests (vitest)
+```
+
 ## Environment Variables
 
 ### Frontend (.env)
