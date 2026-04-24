@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
@@ -37,9 +39,23 @@ import { evaluatePrompt } from '../shared/prompt-evaluator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || process.env.PUBLIC_BASE_URL || '';
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again later.' },
+});
+
+// Valid Gemini chat model identifiers (e.g. gemini-2.0-flash, gemini-2.5-pro-exp-03-25)
+const GEMINI_CHAT_MODEL_RE = /^gemini-[\w.-]{1,60}$/;
+
 export const createApp = () => {
   const app = express();
-  app.use(cors());
+  app.use(helmet());
+  app.use(cors(ALLOWED_ORIGIN ? { origin: ALLOWED_ORIGIN } : {}));
   app.use(express.json({ limit: '10mb' }));
 
   // Static uploads
@@ -105,7 +121,7 @@ export const createApp = () => {
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
       const { email, password } = req.body || {};
       const user = await verifyCredentials(email, password);
@@ -113,7 +129,8 @@ export const createApp = () => {
       const token = issueToken(user);
       res.json({ token, user });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Login error:', err);
+      res.status(500).json({ error: 'Login failed.' });
     }
   });
 
@@ -218,12 +235,13 @@ export const createApp = () => {
       res.setHeader('Content-Disposition', `attachment; filename="${bundleName}"`);
 
       const archive = archiver('zip', { zlib: { level: 9 } });
-      archive.on('error', err => res.status(500).end(err.message));
+      archive.on('error', err => { console.error('Archive error:', err); res.status(500).end('Archive failed.'); });
       archive.pipe(res);
       files.forEach(f => archive.append(f.buffer, { name: f.name }));
       archive.finalize();
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Download error:', err);
+      res.status(500).json({ error: 'Download failed.' });
     }
   });
 
@@ -265,7 +283,8 @@ export const createApp = () => {
       const attempt = insertImageAttempt(pageId, upload.secure_url);
       res.status(201).json({ image: attempt });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Page image upload error:', err);
+      res.status(500).json({ error: 'Image upload failed.' });
     }
   });
 
@@ -318,7 +337,8 @@ export const createApp = () => {
       const attempt = insertCoverAttempt(bookId, upload.secure_url);
       res.status(201).json({ image: attempt });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Cover image upload error:', err);
+      res.status(500).json({ error: 'Image upload failed.' });
     }
   });
 
@@ -442,8 +462,9 @@ export const createApp = () => {
     });
     const close = () => res.end();
     try {
-      const { messages = [], model = DEFAULT_CHAT_MODEL, systemContext } = req.body || {};
+      const { messages = [], model: rawModel = DEFAULT_CHAT_MODEL, systemContext } = req.body || {};
       if (!messages.length) { res.write('Error: messages array required'); return close(); }
+      const model = GEMINI_CHAT_MODEL_RE.test(rawModel) ? rawModel : DEFAULT_CHAT_MODEL;
       const apiKey = ensureGeminiKey();
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
       const allMessages = systemContext
@@ -487,7 +508,7 @@ export const createApp = () => {
       }
       close();
     } catch (err) {
-      res.write(`Error: ${err.message}`); close();
+      console.error('Chat stream error:', err); res.write('Error: Chat failed.'); close();
     }
   });
 
@@ -507,7 +528,8 @@ export const createApp = () => {
       try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
       res.json({ idea: parsed, raw: text });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Ideas error:', err);
+      res.status(500).json({ error: 'Failed to generate ideas.' });
     }
   });
 
@@ -524,7 +546,8 @@ export const createApp = () => {
       try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
       res.json({ idea: parsed, raw: text });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Ideas/page error:', err);
+      res.status(500).json({ error: 'Failed to generate page idea.' });
     }
   });
 

@@ -6,7 +6,7 @@ const TOKEN_TTL = '7d';
 const getSecret = () => {
   const s = process.env.AUTH_SECRET;
   if (!s) throw new Error('AUTH_SECRET is required');
-  if (s.length < 16) throw new Error('AUTH_SECRET must be at least 16 characters');
+  if (s.length < 32) throw new Error('AUTH_SECRET must be at least 32 characters');
   return s;
 };
 
